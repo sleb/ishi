@@ -1,12 +1,12 @@
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
 use crate::category::Category;
 use crate::editor::Editor;
 use crate::items;
-use crate::workspace::Workspace;
+use crate::workspace::{self, Workspace};
 
 #[derive(Debug, Error)]
 pub enum UiError {
@@ -71,6 +71,21 @@ pub fn run_new(
         }
     };
     Ok(path)
+}
+
+pub fn run_init(cwd: &Path, name: Option<&str>) -> anyhow::Result<String> {
+    let (target, display) = match name {
+        Some(n) => (cwd.join(n), format!("./{n}")),
+        None => (cwd.to_path_buf(), ".".to_string()),
+    };
+
+    let report = workspace::init(&target)?;
+
+    Ok(match report.created.len() {
+        5 => format!("Created PARA system in {display}"),
+        0 => format!("PARA system in {display} is already complete; no changes made"),
+        _ => format!("Created {} in {display}", report.created.join(", ")),
+    })
 }
 
 #[cfg(test)]
@@ -190,5 +205,79 @@ mod tests {
         let path = run_new(&ws, &editor, &mut ui, Some("my-file".to_string())).unwrap();
 
         assert_eq!(path, dir.path().join("0-Inbox/my-file.md"));
+    }
+
+    #[test]
+    fn run_init_bare_full_create() {
+        let dir = tempdir().unwrap();
+
+        let message = run_init(dir.path(), None).unwrap();
+
+        assert_eq!(message, "Created PARA system in .");
+    }
+
+    #[test]
+    fn run_init_named_full_create() {
+        let dir = tempdir().unwrap();
+
+        let message = run_init(dir.path(), Some("my-para")).unwrap();
+
+        assert_eq!(message, "Created PARA system in ./my-para");
+        for name in Config::default().category_dirs {
+            assert!(dir.path().join("my-para").join(name).is_dir());
+        }
+    }
+
+    #[test]
+    fn run_init_already_complete() {
+        let dir = tempdir().unwrap();
+        for name in Config::default().category_dirs {
+            fs::create_dir_all(dir.path().join(name)).unwrap();
+        }
+
+        let message = run_init(dir.path(), None).unwrap();
+
+        assert_eq!(
+            message,
+            "PARA system in . is already complete; no changes made"
+        );
+    }
+
+    #[test]
+    fn run_init_partial_fill_in() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("0-Inbox")).unwrap();
+
+        let message = run_init(dir.path(), None).unwrap();
+
+        assert_eq!(
+            message,
+            "Created 1-Projects, 2-Areas, 3-Resources, 4-Archive in ."
+        );
+    }
+
+    #[test]
+    fn run_init_bare_tolerates_unrelated_contents() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("README.md"), "hello").unwrap();
+
+        let message = run_init(dir.path(), None).unwrap();
+
+        assert_eq!(message, "Created PARA system in .");
+        assert_eq!(
+            fs::read_to_string(dir.path().join("README.md")).unwrap(),
+            "hello"
+        );
+    }
+
+    #[test]
+    fn run_init_named_collision_surfaces_error() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("existing-file"), "").unwrap();
+
+        let err = run_init(dir.path(), Some("existing-file")).unwrap_err();
+
+        assert!(err.to_string().contains("existing-file"));
+        assert!(err.to_string().contains("already exists"));
     }
 }

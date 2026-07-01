@@ -60,6 +60,22 @@ Answers "where do things live?" for every other component.
 - `Workspace::discover(start: &Path) -> Result<Workspace>` — walks up from
   `start` looking for `.tick.toml` or the five category dirs.
 - `Workspace::category_dir(&self, category: Category) -> PathBuf`
+- `struct InitReport { created: Vec<String> }` — names (in
+  `Config::default().category_dirs` order) of the category dirs `init`
+  actually created; empty means the target was already a complete PARA
+  system.
+- `check_collision(target: &Path) -> Result<()>` — errors if `target`
+  exists and isn't a directory. Called unconditionally by `init` for both
+  the current-directory and named-subdirectory forms; it's a no-op for the
+  current-directory form since `cwd` is always a directory. Directories
+  with unrelated contents (a `README`, `.git`, etc.) are never a
+  collision, in either form — `init` just creates whichever category dirs
+  are missing alongside them.
+- `init(target: &Path) -> Result<InitReport>` — creates `target` if it
+  doesn't exist, then creates whichever of the five default-named category
+  dirs are missing under it. No `.tick.toml` is written; the created dirs
+  are discoverable later via `Workspace::discover`'s bare-category-dirs
+  fallback.
 
 ### `items`
 
@@ -114,6 +130,12 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
 - `Ui` trait (implemented once for a real terminal, once for tests):
   `confirm(prompt: &str, default: &str) -> Result<String>`,
   `choose(prompt: &str, options: &[&str]) -> Result<char>`.
+- `run_init(cwd: &Path, name: Option<&str>) -> Result<String>` — resolves
+  the target (`cwd` or `cwd.join(name)`) and its display form (`.` or
+  `./<name>`), calls `workspace::init` (which runs `check_collision`
+  internally for both forms), and renders the outcome (full create /
+  partial fill-in / already-complete) into the exact message `main`
+  prints.
 
 ## Notes
 
