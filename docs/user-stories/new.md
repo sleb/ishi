@@ -3,6 +3,7 @@
 ## User Story 001
 
 - **Summary:** Capture a quick thought without leaving the terminal or naming a file
+- **Status:** Completed
 
 ### Use Case
 
