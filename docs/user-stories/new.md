@@ -44,6 +44,7 @@
 ## User Story 002
 
 - **Summary:** Drop a named note straight into the Inbox
+- **Status:** Completed
 
 ### Use Case
 

@@ -14,7 +14,7 @@ struct Cli {
     command: Commands,
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, PartialEq, Subcommand)]
 enum Commands {
     /// Capture a new note in the Inbox.
     New { filename: Option<String> },
@@ -40,4 +40,21 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_new_with_filename() {
+        let cli = Cli::parse_from(["tk", "new", "my-file"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::New {
+                filename: Some("my-file".to_string())
+            }
+        );
+    }
 }
