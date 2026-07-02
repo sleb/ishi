@@ -3,6 +3,7 @@
 ## User Story 001
 
 - **Summary:** Turn the current directory into a PARA system with one command
+- **Status:** Completed
 
 ### Use Case
 
@@ -23,6 +24,7 @@
 ## User Story 002
 
 - **Summary:** Start a new, separately-named PARA system without leaving my current folder
+- **Status:** Completed
 
 ### Use Case
 
@@ -43,6 +45,7 @@
 ## User Story 003
 
 - **Summary:** Re-running `init` fills in whatever's missing instead of failing outright
+- **Status:** Completed
 
 ### Use Case
 
@@ -69,6 +72,7 @@
 ## User Story 004
 
 - **Summary:** Get a clear error instead of a confusing filesystem failure when the target path is unusable
+- **Status:** Completed
 
 ### Use Case
 
