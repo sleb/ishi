@@ -67,16 +67,17 @@ Archive    0
 
 ## Commands
 
-| Command                     | Description                                                                                                                                                                                                        |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `init [name]`               | Initialize a new PARA system                                                                                                                                                                                       |
+| Command                                          | Description                                                                                                                                                                                                                                            |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `init [name]`                                    | Initialize a new PARA system                                                                                                                                                                                                                           |
 | `new [filename] [--project\|--area\|--resource]` | Capture a new note. Defaults to the Inbox; pass `--project` or `--area` to scaffold a directory with an `index.md`, or `--resource` for a flat file. Omit `filename` to capture in `$EDITOR`, which will suggest a name for you to confirm or override |
-| `daily`                     | Create (or open) today's daily note in the Inbox                                                                                                                                                                   |
-| `mv <item> <category>`      | Move a file or project/area directory to `inbox`, `project`, `area`, `resource`, or `archive`. Archiving preserves which category the item came from                                                               |
-| `list <category> [filter]`  | List items in a category (`inbox`, `project`, `area`, `resource`, or `archive`), optionally filtered by name                                                                                                       |
-| `status`                    | Show item counts per category and flag stale projects/areas                                                                                                                                                        |
-| `review`                    | Walk through projects and areas one by one for a weekly review                                                                                                                                                     |
-| `completions <shell>`       | Generate a shell completion script                                                                                                                                                                                 |
+| `daily`                                          | Create (or open) today's daily note in the Inbox                                                                                                                                                                                                       |
+| `mv <item> <category>`                           | Move a file or project/area directory to `inbox`, `project`, `area`, `resource`, or `archive`. Archiving preserves which category the item came from                                                                                                   |
+| `list <category> [filter]`                       | List items in a category (`inbox`, `project`, `area`, `resource`, or `archive`), optionally filtered by name                                                                                                                                           |
+| `status`                                         | Show item counts per category and flag stale projects/areas                                                                                                                                                                                            |
+| `review`                                         | Walk through projects and areas one by one for a weekly review                                                                                                                                                                                         |
+| `config [init\|edit]`                            | View, initialize, or edit the `.tick.toml` config                                                                                                                                                                                                      |
+| `completions <shell>`                            | Generate a shell completion script                                                                                                                                                                                                                     |
 
 Files created without an extension default to `.md`.
 
@@ -196,6 +197,37 @@ Project: website-redesign (last updated 12 days ago)
   [k]eep  [a]rchive  [s]kip?
 ```
 
+### `config`
+
+```
+tk config [init | edit]
+```
+
+With no arguments, prints the effective config (defaults merged with any `.tick.toml` overrides). `tk config init` writes a `.tick.toml` populated with the [defaults](#configuration), ready to customize. `tk config edit` opens it in `$EDITOR`.
+
+```
+$ tk config init
+Created ./.tick.toml
+
+$ tk config
+[folders]
+inbox = "0-Inbox"
+projects = "1-Projects"
+areas = "2-Areas"
+resources = "3-Resources"
+archive = "4-Archive"
+
+[defaults]
+extension = "md"
+
+[templates]
+note = "..."
+daily = "..."
+project = "..."
+area = "..."
+resource = "..."
+```
+
 ### `completions`
 
 ```
@@ -210,4 +242,83 @@ $ tk completions zsh > ~/.zsh/completions/_tk
 
 ## Configuration
 
-Tick reads an optional `.tick.toml` from the root of your PARA system, letting you rename the numbered folders or change the default file extension instead of relying on the `0-Inbox`, `1-Projects`, etc. defaults.
+Tick reads an optional `.tick.toml` from the root of your PARA system. It lets you rename the numbered folders, change the default file extension, and customize the templates used for new notes instead of relying on the built-in defaults.
+
+```toml
+[folders]
+inbox = "0-Inbox"
+projects = "1-Projects"
+areas = "2-Areas"
+resources = "3-Resources"
+archive = "4-Archive"
+
+[defaults]
+extension = "md"
+
+[templates]
+note = """
+---
+last_updated: {{date}}
+---
+# {{title}}
+"""
+
+daily = """
+---
+date: {{date}}
+last_updated: {{date}}
+---
+# {{date}}
+
+## Tasks
+
+[ ] -
+
+## Notes
+
+"""
+
+project = """
+---
+last_updated: {{date}}
+---
+
+# {{title}}
+
+Status: active
+"""
+
+area = """
+---
+last_updated: {{date}}
+---
+
+# {{title}}
+
+Standard:
+"""
+
+resource = """
+---
+last_updated: {{date}}
+---
+
+# {{title}}
+"""
+```
+
+Every category has a template: `note` is used for Inbox captures and `--resource` notes, `daily` for `tk daily`, and `project`/`area` for the `index.md` scaffolded by `tk new --project`/`--area`. Templates are plain text with `{{title}}` and `{{date}}` placeholders, filled in when the note is created. `tk config init` writes the defaults above as a starting point.
+
+### Schema and autocomplete
+
+`tk config init` (and `tk config edit`, if no config exists yet) writes a [`#:schema`](https://taplo.tamasfe.dev/configuration/directives.html) directive as the first line of `.tick.toml`, pointing at a JSON Schema that describes the `folders`, `defaults`, and `templates` keys:
+
+```toml
+#:schema ./.tick.schema.json
+
+[folders]
+inbox = "0-Inbox"
+...
+```
+
+Editors with Taplo-based TOML support — notably VS Code's [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml) extension — read that directive to offer autocomplete and inline validation for `.tick.toml`, with no extra setup. Tick writes the referenced schema file alongside `.tick.toml` so the reference resolves locally, without a network fetch. This is a Taplo-specific convention, not a universal TOML standard, so editors without Taplo support won't do anything with the directive beyond treating it as a comment.
