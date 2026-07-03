@@ -73,7 +73,7 @@ Archive    0
 | `new [filename] [--project\|--area\|--resource\|--daily]` | Capture a new note. Defaults to the Inbox; pass `--project` or `--area` to scaffold a directory with an `index.md`, or `--resource` for a flat file. Omit `filename` to capture in `$EDITOR`, which will suggest a name for you to confirm or override. `--daily` creates (or opens) today's note and takes no `filename`; see [`tk daily`](#daily) |
 | `daily`                                                   | Create (or open) today's daily note in the Inbox                                                                                                                                                                                                                                                                                                    |
 | `mv <item> <category>`                                    | Move a file or project/area directory to `inbox`, `project`, `area`, `resource`, or `archive`. Archiving preserves which category the item came from                                                                                                                                                                                                |
-| `list <category> [filter]`                                | List items in a category (`inbox`, `project`, `area`, `resource`, or `archive`), optionally filtered by name                                                                                                                                                                                                                                        |
+| `list <category> [filter]`                                | List items in a category (`inbox`, `project`, `area`, `resource`, or `archive`) with their inferred title and last-modified time, optionally filtered by name or title                                                                                                                                                                             |
 | `status`                                                  | Show item counts per category and flag stale projects/areas                                                                                                                                                                                                                                                                                         |
 | `review`                                                  | Walk through projects and areas one by one for a weekly review                                                                                                                                                                                                                                                                                      |
 | `config [init\|edit] [-g\|--global]`                      | View the effective config, or initialize/edit `.tick.toml`; `-g` targets `~/.tick.toml` instead of the local one                                                                                                                                                                                                                                    |
@@ -162,15 +162,25 @@ Moving a `project`/`area` directory to `inbox` or `resource` (unwrapping a direc
 tk list <inbox|project|area|resource|archive> [filter]
 ```
 
-Lists items in a category, optionally filtered to names containing `filter`. For `project` and `area`, this lists the item directories (not the `index.md` files inside them); for `resource`, `inbox`, and `archive`, it lists flat files.
+Lists items in a category as a table of **Name**, **Title**, and **Updated**, sorted alphabetically by name. For `project` and `area`, Name/Title/Updated come from the item directory and its `index.md` (not the `index.md` path itself); for `resource`, `inbox`, and `archive`, they come from the flat file. `archive` prefixes Name with the item's origin category (`Projects/...`, `Resources/...`, etc.), since archived items from different origins can share a bare name.
+
+- **Title** is inferred the same way `tk new`'s editor capture infers a filename: skip a leading frontmatter block, then take the first Markdown heading's text. If no heading is found, Title falls back to repeating Name.
+- **Updated** is how long ago the item was last modified, in days (`today`, `1 day ago`, `12 days ago`, ...) — the same convention `tk review`'s transcript uses.
+
+`filter`, if given, matches a case-insensitive substring of either Name or Title.
 
 ```
 $ tk list project
-./1-Projects/my-project
-./1-Projects/website-redesign
+NAME               TITLE              UPDATED
+my-project         My Project         21 days ago
+website-redesign   Website Redesign   2 days ago
 
-$ tk list project website
-./1-Projects/website-redesign
+$ tk list project web
+NAME               TITLE              UPDATED
+website-redesign   Website Redesign   2 days ago
+
+$ tk list resource
+No items in Resources.
 ```
 
 ### `status`

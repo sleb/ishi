@@ -91,7 +91,22 @@ structured results — no printing, no prompting.
   moves a file or project/area directory; wraps a flat file into a new
   directory when moving into `Project`/`Area`; when moving to `Archive`,
   preserves the item's origin category as a subfolder.
-- `list(ws: &Workspace, category: Category, filter: Option<&str>) -> Result<Vec<PathBuf>>`
+- `struct ListedItem { name: String, title: String, updated_days_ago: u64 }` —
+  `name` is the dir/file name (`<OriginCategory>/<name>` for `Archive`);
+  `title` comes from `infer_title` below, falling back to `name` if it
+  returns `None`; `updated_days_ago` is the age of the item's `index.md`
+  (`Project`/`Area`) or file (others) mtime, the same source `status` uses
+  for staleness.
+- `list(ws: &Workspace, category: Category, filter: Option<&str>) -> Result<Vec<ListedItem>>`
+  — rows sorted alphabetically by `name`; `filter`, if given, is matched as a
+  case-insensitive substring against `name` or `title`.
+- `infer_title(content: &str) -> Option<String>` — skips a leading YAML
+  frontmatter block if present, then returns the first Markdown heading
+  line's text (any `#` level), or `None` if none is found. Conceptually the
+  same frontmatter-skip-then-find-heading logic as
+  `editor::suggest_filename` (which then slugifies the heading into a
+  filename), implemented independently in `items` — `items` and `editor`
+  still don't depend on each other, per the module boundaries below.
 - `status(ws: &Workspace) -> Result<StatusReport>` where
   `StatusReport { counts: [usize; 5], stale: [usize; 2] }` (stale counts apply
   to `Project`/`Area` only, based on `index.md` mtime).

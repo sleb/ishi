@@ -82,6 +82,16 @@ Pure read over `items` — no mutation, no new filesystem primitives beyond
 what `create` already exercises. Cheapest of the remaining commands and has
 no dependents, so it can slot in anywhere in this group.
 
+- **Design update (2026-07-02), not yet implemented:** `list` no longer
+  just returns bare paths — `items::list` returns `Vec<ListedItem>`
+  (Name/Title/Updated), sorted alphabetically by name, with `filter`
+  matching a case-insensitive substring of Name or Title. Needs a new
+  `items::infer_title` helper (frontmatter-skip + first-heading, mirroring
+  `editor::suggest_filename`'s logic but implemented independently — see
+  the updated `items` section of design.md) and an mtime-based
+  `updated_days_ago`, the same source item 5 (`status`) needs for
+  staleness. Covers user-stories/list.md.
+
 ### 5. `tk status`
 
 Needs a `stale` check (index.md mtime) that `list`'s traversal makes easy to
