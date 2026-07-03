@@ -73,8 +73,8 @@ Archive    0
 | `new [filename] [--project\|--area\|--resource\|--daily]` | Capture a new note. Defaults to the Inbox; pass `--project` or `--area` to scaffold a directory with an `index.md`, or `--resource` for a flat file. Omit `filename` to capture in `$EDITOR`, which will suggest a name for you to confirm or override. `--daily` creates (or opens) today's note and takes no `filename`; see [`tk daily`](#daily) |
 | `daily`                                                   | Create (or open) today's daily note in the Inbox                                                                                                                                                                                                                                                                                                    |
 | `mv <item> <category>`                                    | Move a file or project/area directory to `inbox`, `project`, `area`, `resource`, or `archive`. Archiving preserves which category the item came from                                                                                                                                                                                                |
-| `list <category> [filter]`                                | List items in a category (`inbox`, `project`, `area`, `resource`, or `archive`) with their inferred title and last-modified time, optionally filtered by name or title                                                                                                                                                                             |
-| `status`                                                  | Show item counts per category and flag stale projects/areas                                                                                                                                                                                                                                                                                         |
+| `list <category> [filter]`                                | List items in a category (`inbox`, `project`, `area`, `resource`, or `archive`) with their inferred title and last-modified time, optionally filtered by name or title                                                                                                                                                                              |
+| `status`                                                  | Show item counts per category, plus last-updated/last-reviewed facts for projects and areas                                                                                                                                                                                                                                                                                         |
 | `review`                                                  | Walk through projects and areas one by one for a weekly review                                                                                                                                                                                                                                                                                      |
 | `config [init\|edit] [-g\|--global]`                      | View the effective config, or initialize/edit `.tick.toml`; `-g` targets `~/.tick.toml` instead of the local one                                                                                                                                                                                                                                    |
 | `completions <shell>`                                     | Generate a shell completion script                                                                                                                                                                                                                                                                                                                  |
@@ -189,15 +189,27 @@ No items in Resources.
 tk status
 ```
 
-Shows how many items are in each category, and flags projects or areas whose `index.md` hasn't been touched in a while.
+Shows an at-a-glance summary of the PARA system: item counts per category,
+plus a per-item breakdown for Projects and Areas — the two categories a
+weekly review acts on — showing how long ago each was last updated and last
+reviewed. Inbox, Resources, and Archive stay counts-only, since they can grow
+large and aren't part of the review loop. "Updated" is the same
+modification-time signal `list` uses; "Reviewed" reflects `tk review`, which
+stamps an item's `index.md` with a `last_reviewed` date whenever you `[k]eep`
+it — an item you've never kept in a review reports `reviewed: never`.
 
 ```
 $ tk status
-Inbox      2
-Projects   3 (1 stale)
-Areas      2
-Resources  5
-Archive    12
+Inbox       2
+Projects    3
+`- my-project         My Project         updated: 21 days ago   reviewed: never
+`- q3-initiative      Q3 Initiative      updated: 5 days ago    reviewed: 10 days ago
+`- website-redesign   Website Redesign   updated: 2 days ago    reviewed: 3 days ago
+Areas       2
+`- finances   Finances   updated: 4 days ago   reviewed: 4 days ago
+`- health     Health     updated: today        reviewed: never
+Resources   5
+Archive     12
 ```
 
 ### `review`
@@ -206,7 +218,7 @@ Archive    12
 tk review
 ```
 
-Walks through each project and area one at a time (by its `index.md`), prompting you to keep, update, or archive it — a guided version of PARA's weekly review ritual.
+Walks through each project and area one at a time (by its `index.md`), prompting you to keep, update, or archive it — a guided version of PARA's weekly review ritual. Choosing `[k]eep` stamps the item's `index.md` frontmatter with `last_reviewed: {{date}}` (adding the field if absent, overwriting it if present), which is what [`tk status`](#status) reads to show `reviewed: ...`. `[a]rchive` and `[s]kip` leave `last_reviewed` untouched — `[a]rchive` moves the item out of the active review set entirely, and `[s]kip` explicitly defers judgment rather than confirming the item's current state.
 
 ```
 $ tk review

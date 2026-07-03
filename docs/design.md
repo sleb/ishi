@@ -96,7 +96,7 @@ structured results — no printing, no prompting.
   `title` comes from `infer_title` below, falling back to `name` if it
   returns `None`; `updated_days_ago` is the age of the item's `index.md`
   (`Project`/`Area`) or file (others) mtime, the same source `status` uses
-  for staleness.
+  for its `updated_days_ago` facts.
 - `list(ws: &Workspace, category: Category, filter: Option<&str>) -> Result<Vec<ListedItem>>`
   — rows sorted alphabetically by `name`; `filter`, if given, is matched as a
   case-insensitive substring against `name` or `title`.
@@ -107,9 +107,25 @@ structured results — no printing, no prompting.
   `editor::suggest_filename` (which then slugifies the heading into a
   filename), implemented independently in `items` — `items` and `editor`
   still don't depend on each other, per the module boundaries below.
+- `struct StatusItem { name: String, title: String, updated_days_ago: u64, reviewed_days_ago: Option<u64> }`
+  — one per `Project`/`Area`; `name`/`title`/`updated_days_ago` mirror
+  `ListedItem` (same `infer_title` + mtime sourcing); `reviewed_days_ago` is
+  the age of the item's `index.md` frontmatter `last_reviewed` field, or
+  `None` if the field is absent (never reviewed).
 - `status(ws: &Workspace) -> Result<StatusReport>` where
-  `StatusReport { counts: [usize; 5], stale: [usize; 2] }` (stale counts apply
-  to `Project`/`Area` only, based on `index.md` mtime).
+  `StatusReport { counts: [usize; 5], projects: Vec<StatusItem>, areas: Vec<StatusItem> }`
+  — `counts` is per-category totals in `Category` order; `projects`/`areas`
+  are sorted alphabetically by `name`, same convention as `list`. There is no
+  staleness threshold or flagging — `status` reports the `updated_days_ago`/
+  `reviewed_days_ago` facts and leaves judgment to the user.
+- `read_last_reviewed(ws: &Workspace, item: &Path) -> Result<Option<u64>>` —
+  reads the `last_reviewed` frontmatter field from a `Project`/`Area`'s
+  `index.md`, if present, and returns its age in days. Shared by `status`
+  (read) and `review` (read, to decide whether to overwrite on `[k]eep`).
+- `write_last_reviewed(ws: &Workspace, item: &Path) -> Result<()>` — sets the
+  `index.md` frontmatter's `last_reviewed` field to today's date, adding the
+  field if absent and preserving every other frontmatter key and the body
+  unchanged. Called by `review` on `[k]eep`, never by `status` (read-only).
 
 ### `editor`
 
@@ -138,8 +154,10 @@ Orchestrates the weekly-review walk, built on `items` + `editor`'s prompting
 pattern.
 
 - `run(ws: &Workspace, ui: &mut dyn Ui) -> Result<()>` — iterates `Project` and
-  `Area` items, reads each `index.md`, asks the `Ui` to keep/archive/skip, and
-  calls `items::mv` on archive.
+  `Area` items, reads each `index.md`, asks the `Ui` to keep/archive/skip.
+  `[k]eep` calls `items::write_last_reviewed`; `[a]rchive` calls `items::mv`
+  (origin category preserved as usual, per `mv`) and does not touch
+  `last_reviewed`; `[s]kip` calls neither.
 
 ### `cli`
 

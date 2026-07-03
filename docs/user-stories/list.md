@@ -24,10 +24,10 @@ Column definitions, used throughout:
   file itself (`resource`/`inbox`/`archive`) was last modified, expressed in
   raw days (`today`, `1 day ago`, `12 days ago`, ...) — the same convention
   `review`'s example transcript uses (`last updated 12 days ago`), and
-  sourced from the same mtime `status` already uses for its stale count.
-  `list` itself does not flag staleness — that stays scoped to `status`/
-  `review`, pending the `stale_after_days` threshold decision (spec-gaps.md
-  gap 4).
+  sourced from the same mtime `status` uses for its `updated_days_ago` facts
+  (see [status.md](status.md)). Neither `list` nor `status` flags staleness
+  or applies a threshold — both report raw ages and leave judgment to the
+  user.
 
 Rows are sorted alphabetically by Name. This is deterministic across runs,
 unlike sorting by Updated.

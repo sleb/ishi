@@ -89,13 +89,20 @@ no dependents, so it can slot in anywhere in this group.
   `items::infer_title` helper (frontmatter-skip + first-heading, mirroring
   `editor::suggest_filename`'s logic but implemented independently — see
   the updated `items` section of design.md) and an mtime-based
-  `updated_days_ago`, the same source item 5 (`status`) needs for
-  staleness. Covers user-stories/list.md.
+  `updated_days_ago`, the same source item 5 (`status`) needs for its
+  per-item `updated: ...` facts. Covers user-stories/list.md.
 
 ### 5. `tk status`
 
-Needs a `stale` check (index.md mtime) that `list`'s traversal makes easy to
-build on top of. Sequenced right after `list` for that reason.
+Per-category counts, plus a per-item breakdown for Projects/Areas showing
+`updated_days_ago` (reuses `list`'s mtime sourcing — sequenced right after
+`list` for that reason) and `reviewed_days_ago` (a new `last_reviewed`
+frontmatter field, `None` until an item has been kept in a review). No
+staleness threshold or flagging — `status` reports the facts and leaves
+judgment to the user. Needs `items::read_last_reviewed` /
+`items::write_last_reviewed` (see design.md); `write_last_reviewed` has no
+caller until item 7 (`review`) lands, but the read side is exercised by
+`status` alone. Covers user-stories/status.md.
 
 ### 6. `tk mv`
 
@@ -109,8 +116,8 @@ to `archive`. No dependents among items 3–5, but **item 7 (`review`) calls
 ### 7. `tk review`
 
 Composes `mv` (item 6) with the `Ui` trait already defined in `src/cli.rs`
-(`confirm`/`choose` are implemented and tested via `run_init`/`run_new`).
-Blocked only on item 6.
+(`confirm`/`choose` are implemented and tested via `run_init`/`run_new`), plus
+`items::write_last_reviewed` (item 5) on `[k]eep`. Blocked on items 5 and 6.
 
 ### 8. `tk config` CLI surface
 
