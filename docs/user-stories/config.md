@@ -6,25 +6,70 @@
 
 ### Use Case
 
-- **As a** Tick user who isn't sure whether a setting comes from `.tick.toml` or a built-in default
+- **As a** Tick user who isn't sure whether a setting comes from `./.tick.toml`, `~/.tick.toml`, or a built-in default
 - **I want to** run `tk config` with no arguments
-- **so that** I can see the full effective configuration in one place, without cross-referencing my `.tick.toml` against the docs
+- **so that** I can see the full effective configuration, and where each setting came from, in one place — without cross-referencing two config files and the docs
 
 ### Acceptance Criteria
 
-- **Scenario:** No `.tick.toml` is present
-- **Given:** I am inside a PARA system with no `.tick.toml` file
+- **Scenario:** No config files are present
+- **Given:** I am inside a PARA system with no `./.tick.toml` and no `~/.tick.toml`
 - **When:** I run `tk config`
 - **Then:** Tick prints the built-in default config in `.tick.toml` (TOML) format, covering `folders`, `defaults`, and `templates`
+- **and Then:** every key is marked as coming from the built-in default (e.g. an inline `# default` comment)
 
-- **Scenario:** A `.tick.toml` overrides some defaults
-- **Given:** my `.tick.toml` overrides only the `folders.inbox` key
+- **Scenario:** Only the local config overrides a default
+- **Given:** `./.tick.toml` overrides only the `folders.inbox` key, and there is no `~/.tick.toml`
 - **When:** I run `tk config`
-- **Then:** Tick prints the full config with `folders.inbox` set to my override and every other key at its built-in default
+- **Then:** Tick prints the full config with `folders.inbox` set to my override, marked as coming from the local config (e.g. `# local`), and every other key marked as a built-in default
+
+- **Scenario:** Both a user-level and local config set the same key
+- **Given:** `~/.tick.toml` sets `templates.daily` and `./.tick.toml` also sets `templates.daily` to a different value
+- **When:** I run `tk config`
+- **Then:** Tick prints `templates.daily` with the local config's value, marked as coming from the local config (e.g. `# local, overrides user`)
+
+- **Scenario:** Only the user-level config overrides a default
+- **Given:** `~/.tick.toml` sets `templates.note`, and there is no `./.tick.toml`
+- **When:** I run `tk config`
+- **Then:** Tick prints `templates.note` with the user config's value, marked as coming from the user config (e.g. `# user`)
 
 ---
 
 ## User Story 002
+
+- **Summary:** Set personal defaults once, then override them per PARA system
+
+### Use Case
+
+- **As a** Tick user who manages more than one PARA system, or shares a repo's config with others
+- **I want to** put my personal preferences in `~/.tick.toml` and only the settings specific to a given system in its local `./.tick.toml`
+- **so that** I don't have to repeat my personal preferences (like templates I like) in every project, while still being able to override them for a specific system
+
+### Acceptance Criteria
+
+- **Scenario:** Only a user-level config exists
+- **Given:** `~/.tick.toml` sets `templates.daily` to a custom value and there is no `./.tick.toml` in my current PARA system
+- **When:** Tick resolves its configuration (e.g. for `tk daily` or `tk config`)
+- **Then:** the effective config uses my `~/.tick.toml` value for `templates.daily`, and built-in defaults for every other key
+
+- **Scenario:** Both a user-level and local config exist, with no overlapping keys
+- **Given:** `~/.tick.toml` sets `templates.daily` and `./.tick.toml` sets `folders.inbox`
+- **When:** Tick resolves its configuration
+- **Then:** the effective config includes both my `templates.daily` override and my `folders.inbox` override, layered on top of the built-in defaults
+
+- **Scenario:** Local config overrides a key also set at the user level
+- **Given:** `~/.tick.toml` sets `templates.daily` to one value and `./.tick.toml` sets `templates.daily` to a different value
+- **When:** Tick resolves its configuration
+- **Then:** the effective config uses the value from `./.tick.toml`, since the local config takes precedence over the user-level one
+
+- **Scenario:** Neither config file exists
+- **Given:** there is no `~/.tick.toml` and no `./.tick.toml`
+- **When:** Tick resolves its configuration
+- **Then:** the effective config is exactly the built-in defaults
+
+---
+
+## User Story 003
 
 - **Summary:** Get a starting `.tick.toml` instead of writing one from scratch
 
@@ -36,15 +81,21 @@
 
 ### Acceptance Criteria
 
-- **Scenario:** No config file exists yet
-- **Given:** I am inside a PARA system with no `.tick.toml` file
+- **Scenario:** No local config file exists yet
+- **Given:** I am inside a PARA system with no `./.tick.toml` file
 - **When:** I run `tk config init`
-- **Then:** Tick creates a `.tick.toml` containing the default `folders`, `defaults`, and `templates` tables
+- **Then:** Tick creates a `./.tick.toml` containing the default `folders`, `defaults`, and `templates` tables
+- **and Then:** Tick prints the path it created
+
+- **Scenario:** Initializing the user-level config instead
+- **Given:** I have no `~/.tick.toml` file
+- **When:** I run `tk config init -g` (or `--global`)
+- **Then:** Tick creates `~/.tick.toml` containing the default `folders`, `defaults`, and `templates` tables, instead of touching the local `./.tick.toml`
 - **and Then:** Tick prints the path it created
 
 ---
 
-## User Story 003
+## User Story 004
 
 - **Summary:** Don't clobber my customized config by re-running init
 
@@ -56,15 +107,26 @@
 
 ### Acceptance Criteria
 
-- **Scenario:** A `.tick.toml` already exists
-- **Given:** a `.tick.toml` file already exists in my PARA system
+- **Scenario:** A local `.tick.toml` already exists
+- **Given:** a `./.tick.toml` file already exists in my PARA system
 - **When:** I run `tk config init`
-- **Then:** Tick prints an error explaining that `.tick.toml` already exists
+- **Then:** Tick prints an error explaining that `./.tick.toml` already exists
 - **and Then:** the existing file is left untouched
+
+- **Scenario:** A user-level `.tick.toml` already exists
+- **Given:** a `~/.tick.toml` file already exists
+- **When:** I run `tk config init -g`
+- **Then:** Tick prints an error explaining that `~/.tick.toml` already exists
+- **and Then:** the existing file is left untouched
+
+- **Scenario:** A local config exists, but the user-level one doesn't
+- **Given:** `./.tick.toml` exists but `~/.tick.toml` does not
+- **When:** I run `tk config init -g`
+- **Then:** Tick creates `~/.tick.toml` without error, since only the target of `-g` is checked for an existing file
 
 ---
 
-## User Story 004
+## User Story 005
 
 - **Summary:** Jump straight into editing my config, no need to remember the filename
 
@@ -76,19 +138,29 @@
 
 ### Acceptance Criteria
 
-- **Scenario:** Editing an existing config
-- **Given:** a `.tick.toml` file already exists in my PARA system
+- **Scenario:** Editing an existing local config
+- **Given:** a `./.tick.toml` file already exists in my PARA system
 - **When:** I run `tk config edit`
 - **Then:** Tick opens that file in `$EDITOR`
 
-- **Scenario:** Editing when no config exists yet
-- **Given:** I am inside a PARA system with no `.tick.toml` file
+- **Scenario:** Editing when no local config exists yet
+- **Given:** I am inside a PARA system with no `./.tick.toml` file
 - **When:** I run `tk config edit`
-- **Then:** Tick creates a `.tick.toml` populated with the defaults (as in `tk config init`) and then opens it in `$EDITOR`
+- **Then:** Tick creates a `./.tick.toml` populated with the defaults (as in `tk config init`) and then opens it in `$EDITOR`
+
+- **Scenario:** Editing the user-level config instead
+- **Given:** a `~/.tick.toml` file already exists
+- **When:** I run `tk config edit -g` (or `--global`)
+- **Then:** Tick opens `~/.tick.toml` in `$EDITOR`, instead of the local `./.tick.toml`
+
+- **Scenario:** Editing the user-level config when it doesn't exist yet
+- **Given:** I have no `~/.tick.toml` file
+- **When:** I run `tk config edit -g`
+- **Then:** Tick creates `~/.tick.toml` populated with the defaults (as in `tk config init -g`) and then opens it in `$EDITOR`
 
 ---
 
-## User Story 005
+## User Story 006
 
 - **Summary:** Get autocomplete and validation for `.tick.toml` in my editor
 

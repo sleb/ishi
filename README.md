@@ -76,7 +76,7 @@ Archive    0
 | `list <category> [filter]`                       | List items in a category (`inbox`, `project`, `area`, `resource`, or `archive`), optionally filtered by name                                                                                                                                           |
 | `status`                                         | Show item counts per category and flag stale projects/areas                                                                                                                                                                                            |
 | `review`                                         | Walk through projects and areas one by one for a weekly review                                                                                                                                                                                         |
-| `config [init\|edit]`                            | View, initialize, or edit the `.tick.toml` config                                                                                                                                                                                                      |
+| `config [init\|edit] [-g\|--global]`              | View the effective config, or initialize/edit `.tick.toml`; `-g` targets `~/.tick.toml` instead of the local one                                                                                                                                       |
 | `completions <shell>`                            | Generate a shell completion script                                                                                                                                                                                                                     |
 
 Files created without an extension default to `.md`.
@@ -200,10 +200,10 @@ Project: website-redesign (last updated 12 days ago)
 ### `config`
 
 ```
-tk config [init | edit]
+tk config [init | edit] [-g | --global]
 ```
 
-With no arguments, prints the effective config (defaults merged with any `.tick.toml` overrides). `tk config init` writes a `.tick.toml` populated with the [defaults](#configuration), ready to customize. `tk config edit` opens it in `$EDITOR`.
+With no arguments, prints the effective config — [defaults](#configuration) layered with any `~/.tick.toml` and `./.tick.toml` overrides — annotating each setting with where it came from. `tk config init` writes a `.tick.toml` populated with the defaults, ready to customize; `tk config edit` opens it in `$EDITOR`. Both target the local `./.tick.toml` by default; pass `-g`/`--global` to target `~/.tick.toml` instead.
 
 ```
 $ tk config init
@@ -211,21 +211,21 @@ Created ./.tick.toml
 
 $ tk config
 [folders]
-inbox = "0-Inbox"
-projects = "1-Projects"
-areas = "2-Areas"
-resources = "3-Resources"
-archive = "4-Archive"
+inbox = "0-Inbox"      # default
+projects = "1-Projects" # default
+areas = "2-Areas"       # default
+resources = "3-Resources" # default
+archive = "4-Archive"   # local, overrides user
 
 [defaults]
-extension = "md"
+extension = "md" # default
 
 [templates]
-note = "..."
-daily = "..."
-project = "..."
-area = "..."
-resource = "..."
+note = "..."    # default
+daily = "..."   # user
+project = "..." # default
+area = "..."    # default
+resource = "..." # default
 ```
 
 ### `completions`
@@ -242,7 +242,15 @@ $ tk completions zsh > ~/.zsh/completions/_tk
 
 ## Configuration
 
-Tick reads an optional `.tick.toml` from the root of your PARA system. It lets you rename the numbered folders, change the default file extension, and customize the templates used for new notes instead of relying on the built-in defaults.
+Tick reads an optional `.tick.toml` from the root of your PARA system, and another from `~/.tick.toml` for personal defaults that apply across every system. It lets you rename the numbered folders, change the default file extension, and customize the templates used for new notes instead of relying on the built-in defaults.
+
+Configuration is layered, with each level overriding only the keys it sets:
+
+1. built-in defaults
+2. `~/.tick.toml` (user-level)
+3. `./.tick.toml` (local to the current PARA system)
+
+So a template you like everywhere can live in `~/.tick.toml`, while a project-specific folder rename goes in `./.tick.toml` without needing to repeat the rest of your personal config. `tk config init`/`tk config edit` operate on `./.tick.toml` by default and `~/.tick.toml` with `-g`; see [`config`](#config) above.
 
 ```toml
 [folders]
