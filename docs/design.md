@@ -103,14 +103,19 @@ prompt logic. Splits into one impure entry point and a pure core so the
 filename-inference logic is directly unit-testable without spawning a real
 editor process or racing the system clock.
 
-- `Editor` trait: `capture(&self) -> Result<(String, String)>` — implemented
-  once as `RealEditor` (opens `$EDITOR` on a scratch file, reads it back) and
-  once per test as a fake. Returns `(content, suggested_filename)`.
-- `suggest_filename(content: &str) -> String` — pure. Reads content's first
-  line, strips a leading `#`/whitespace, and slugifies it; falls back to a
-  timestamp-based name if that first line is blank (including when the note
-  itself is empty). Internally delegates to a `SystemTime`-parameterized
-  helper so the timestamp fallback is deterministic in tests.
+- `Editor` trait: `capture(&self, seed: &str) -> Result<(String, String)>` —
+  implemented once as `RealEditor` (writes `seed` — the rendered template,
+  with `{{title}}` empty and `{{cursor}}` marking the starting line — to a
+  scratch file, opens `$EDITOR` on it via a `+<line>` argument when a cursor
+  line is present, reads it back) and once per test as a fake. Returns
+  `(content, suggested_filename)`.
+- `suggest_filename(content: &str) -> String` — pure. Skips a leading YAML
+  frontmatter block if present, then looks for the first Markdown heading
+  line (any `#` level) in the remainder and slugifies its text; if no
+  heading is found, falls back to the first non-blank line after the
+  frontmatter; if that's also absent, falls back to a timestamp-based name.
+  Internally delegates to a `SystemTime`-parameterized helper so the
+  timestamp fallback is deterministic in tests.
 
 ### `review`
 

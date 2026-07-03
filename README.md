@@ -103,7 +103,7 @@ $ ls my-para
 tk new [filename] [--project | --area | --resource]
 ```
 
-Creates a new note. With no arguments, opens `$EDITOR` on a scratch file, then suggests a filename from the first line you wrote (or a timestamp, if the file is empty) and prompts you to confirm it or type a different one before creating it in the Inbox. With a `filename`, creates it directly — in the Inbox by default, or under `--project`, `--area`, or `--resource` if given.
+Creates a new note. With no arguments, opens `$EDITOR` pre-populated with the category's rendered template — frontmatter and all, cursor positioned where the title goes — instead of a blank scratch file. Once you save and exit, Tick suggests a filename from what you wrote (or a timestamp, if you left the template unchanged or emptied the file) and prompts you to confirm it or type a different one before creating the note in the Inbox. With a `filename`, creates it directly — in the Inbox by default, or under `--project`, `--area`, or `--resource` if given — rendering the template non-interactively instead.
 
 For `--project` and `--area`, this scaffolds a directory named after `filename` containing an `index.md`, so the project can grow to hold other files. For `--resource` (and the Inbox), it's a single flat file.
 
@@ -268,7 +268,7 @@ note = """
 ---
 last_updated: {{date}}
 ---
-# {{title}}
+# {{cursor}}{{title}}
 """
 
 daily = """
@@ -284,6 +284,7 @@ last_updated: {{date}}
 
 ## Notes
 
+{{cursor}}
 """
 
 project = """
@@ -291,7 +292,7 @@ project = """
 last_updated: {{date}}
 ---
 
-# {{title}}
+# {{cursor}}{{title}}
 
 Status: active
 """
@@ -301,7 +302,7 @@ area = """
 last_updated: {{date}}
 ---
 
-# {{title}}
+# {{cursor}}{{title}}
 
 Standard:
 """
@@ -311,11 +312,23 @@ resource = """
 last_updated: {{date}}
 ---
 
-# {{title}}
+# {{cursor}}{{title}}
 """
 ```
 
-Every category has a template: `note` is used for Inbox captures and `--resource` notes, `daily` for `tk daily`, and `project`/`area` for the `index.md` scaffolded by `tk new --project`/`--area`. Templates are plain text with `{{title}}` and `{{date}}` placeholders, filled in when the note is created. `tk config init` writes the defaults above as a starting point.
+Every category has a template: `note` is used for Inbox captures and `--resource` notes, `daily` for `tk daily`, and `project`/`area` for the `index.md` scaffolded by `tk new --project`/`--area`. Templates are plain text, filled in when the note is created, with these placeholders:
+
+| Placeholder  | Renders to                                                                                                                                                                                                                                                                                                                                 |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{{date}}`   | Today's date (`2026-07-02`)                                                                                                                                                                                                                                                                                                               |
+| `{{time}}`   | The current time (`14:32`)                                                                                                                                                                                                                                                                                                                |
+| `{{title}}`  | The note's title. Filled in from the given `filename` when creating a note non-interactively. Left empty when the template is used to pre-populate `$EDITOR` for an editor capture (`tk new`, or `--project`/`--area`/`--resource` with no `filename`) — the title isn't known yet, since that's what the editor capture infers      |
+| `{{cursor}}` | Not rendered as text — marks the line where `$EDITOR`'s cursor should start, for the editor-capture paths above. Tick opens `$EDITOR` with a `+<line>` argument pointing at that line, the convention understood by vi/vim/neovim, nano, and `emacs -nw`; editors that don't support it just open at the top of the file. Renders as an empty string outside the editor-capture paths |
+| `{{uuid}}`   | A randomly generated unique id (e.g. `f47ac10b-58cc-4372-a567-0e02b2c3d479`), for Zettelkasten-style permanent note IDs. Not used in the built-in defaults above, but available in custom templates                                                                                                                                     |
+
+`tk config init` writes the defaults above as a starting point.
+
+When an editor capture is saved, Tick infers the title (and from it, the suggested filename) by skipping a leading frontmatter block, if present, then looking for the first Markdown heading line (any `#` level) in what follows; if no heading is found, it falls back to the first non-blank line after the frontmatter; if that's also missing, it falls back to a timestamp-based name.
 
 ### Schema and autocomplete
 
