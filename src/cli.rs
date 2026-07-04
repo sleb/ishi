@@ -74,11 +74,15 @@ pub fn run_new(
         }
         None => {
             let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
-            let seed = config::render(&ws.config.templates.note, "", &today);
+            let seed = config::render(ws.config.templates.for_category(category), "", &today);
             let (content, suggested) = editor.capture(&seed)?;
-            let default = format!("{suggested}.{}", ws.config.default_extension);
+            let default = if category.is_directory_style() {
+                suggested
+            } else {
+                format!("{suggested}.{}", ws.config.default_extension)
+            };
             let chosen = ui.confirm(&format!("Create \"{default}\"?"), &default)?;
-            items::create(ws, Category::Inbox, &chosen, &content)?
+            items::create(ws, category, &chosen, &content)?
         }
     };
     Ok(path)
@@ -236,6 +240,130 @@ mod tests {
         assert!(seed.contains("{{cursor}}"));
         assert!(!seed.contains("{{title}}"));
         assert!(!seed.contains("{{date}}"));
+    }
+
+    #[test]
+    fn captures_into_new_project_directory() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let editor = FakeEditor {
+            content: "# Website Redesign\nbody".to_string(),
+            suggested: "website-redesign".to_string(),
+        };
+        let mut ui = FakeUi {
+            confirm_response: "website-redesign".to_string(),
+        };
+
+        let path = run_new(&ws, &editor, &mut ui, Category::Project, None).unwrap();
+
+        assert_eq!(
+            path,
+            dir.path().join("1-Projects/website-redesign/index.md")
+        );
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "# Website Redesign\nbody"
+        );
+    }
+
+    #[test]
+    fn captures_into_new_area_directory() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let editor = FakeEditor {
+            content: "# Health\nbody".to_string(),
+            suggested: "health".to_string(),
+        };
+        let mut ui = FakeUi {
+            confirm_response: "health".to_string(),
+        };
+
+        let path = run_new(&ws, &editor, &mut ui, Category::Area, None).unwrap();
+
+        assert_eq!(path, dir.path().join("2-Areas/health/index.md"));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "# Health\nbody");
+    }
+
+    #[test]
+    fn captures_into_new_resource_file() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let editor = FakeEditor {
+            content: "# Recipe Ideas\nbody".to_string(),
+            suggested: "recipe-ideas".to_string(),
+        };
+        let mut ui = FakeUi {
+            confirm_response: "recipe-ideas.md".to_string(),
+        };
+
+        let path = run_new(&ws, &editor, &mut ui, Category::Resource, None).unwrap();
+
+        assert_eq!(path, dir.path().join("3-Resources/recipe-ideas.md"));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "# Recipe Ideas\nbody");
+    }
+
+    #[test]
+    fn project_confirm_prompt_suggests_bare_directory_name_without_extension() {
+        use std::cell::RefCell;
+
+        struct RecordingUi {
+            seen_default: RefCell<String>,
+        }
+
+        impl Ui for RecordingUi {
+            fn confirm(&mut self, _prompt: &str, default: &str) -> Result<String, UiError> {
+                *self.seen_default.borrow_mut() = default.to_string();
+                Ok(default.to_string())
+            }
+
+            fn choose(&mut self, _prompt: &str, _options: &[&str]) -> Result<char, UiError> {
+                unimplemented!("not exercised by this test")
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let editor = FakeEditor {
+            content: "# Website Redesign\n".to_string(),
+            suggested: "website-redesign".to_string(),
+        };
+        let mut ui = RecordingUi {
+            seen_default: RefCell::new(String::new()),
+        };
+
+        run_new(&ws, &editor, &mut ui, Category::Project, None).unwrap();
+
+        assert_eq!(*ui.seen_default.borrow(), "website-redesign");
+    }
+
+    #[test]
+    fn editor_seed_uses_category_specific_template() {
+        use std::cell::RefCell;
+
+        struct RecordingEditor {
+            seen_seed: RefCell<String>,
+        }
+
+        impl Editor for RecordingEditor {
+            fn capture(&self, seed: &str) -> Result<(String, String), EditorError> {
+                *self.seen_seed.borrow_mut() = seed.to_string();
+                Ok(("# Title\n".to_string(), "title".to_string()))
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let editor = RecordingEditor {
+            seen_seed: RefCell::new(String::new()),
+        };
+        let mut ui = FakeUi {
+            confirm_response: "title".to_string(),
+        };
+
+        run_new(&ws, &editor, &mut ui, Category::Project, None).unwrap();
+
+        let seed = editor.seen_seed.borrow();
+        assert!(seed.contains("Status: active"));
     }
 
     #[test]

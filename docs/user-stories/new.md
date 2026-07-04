@@ -1,54 +1,5 @@
 # User Stories: `tk new`
 
-## User Story 010
-
-- **Summary:** Capture a thought straight into a project, area, or resource
-- **Depends on:** Story 001 (timestamp-fallback capture flow), Story 003, Story 004, Story 005 (project/area/resource scaffolding), Story 007 (editor pre-population)
-
-### Use Case
-
-- **As a** Tick user starting a new project, area, or resource from a fleeting idea
-- **I want to** run `tk new --project` (or `--area`/`--resource`) with no filename
-- **so that** I can write the content first in `$EDITOR` and let Tick infer the name, without giving up the scaffolding those categories get
-
-### Acceptance Criteria
-
-- **Scenario:** Capture directly into a new project
-- **Given:** I am inside an initialized PARA system with the default `project` template
-- **and Given:** my `$EDITOR` environment variable is set
-- **When:** I run `tk new --project` with no filename, and my editor opens pre-populated with the rendered `project` template, cursor at the title line
-- **and When:** I type `Website Redesign` at the cursor, save, and exit the editor
-- **Then:** Tick prompts `Create "website-redesign"?` with the inferred name pre-filled
-- **and Then:** if I accept the prompt, a directory `1-Projects/website-redesign` is created containing an `index.md` with the frontmatter and my heading exactly as I left them, and Tick prints the path to that `index.md`
-
-- **Scenario:** Capture directly into a new area
-- **Given:** I am inside an initialized PARA system with the default `area` template
-- **and Given:** my `$EDITOR` environment variable is set
-- **When:** I run `tk new --area` with no filename, and my editor opens pre-populated with the rendered `area` template
-- **and When:** I fill in the title, save, exit the editor, and accept the inferred name
-- **Then:** a directory `2-Areas/<inferred-name>` is created containing an `index.md` with the frontmatter and my content exactly as I left them, and Tick prints the path to that `index.md`
-
-- **Scenario:** Capture directly into a new resource
-- **Given:** I am inside an initialized PARA system with the default `resource` template
-- **and Given:** my `$EDITOR` environment variable is set
-- **When:** I run `tk new --resource` with no filename, and my editor opens pre-populated with the rendered `resource` template
-- **and When:** I fill in the title, save, exit the editor, and accept the inferred name
-- **Then:** a file `3-Resources/<inferred-name>.md` is created with the frontmatter and my content exactly as I left them, and Tick prints the path it created
-
-- **Scenario:** Leaving the template unmodified still falls back to a timestamp
-- **Given:** I am inside an initialized PARA system with the default `project` template
-- **and Given:** my `$EDITOR` environment variable is set
-- **When:** I run `tk new --project` with no filename, save the file exactly as it was pre-populated, and exit the editor
-- **Then:** Tick prompts with a name generated from the current timestamp instead of a note title, the same fallback used for a plain `tk new` capture (per story 001)
-
-- **Scenario:** Emptying the file still falls back to a timestamp
-- **Given:** I am inside an initialized PARA system with the default `project` template
-- **and Given:** my `$EDITOR` environment variable is set
-- **When:** I run `tk new --project` with no filename, delete everything the editor was pre-populated with, save an empty file, and exit the editor
-- **Then:** Tick prompts with a name generated from the current timestamp instead of a note title
-
----
-
 ## User Story 011
 
 - **Summary:** Templates can stamp the current time, not just the date
@@ -380,3 +331,55 @@
 - **Given:** I am inside an initialized PARA system with the default `area` template
 - **When:** I run `tk new --area health`
 - **Then:** `2-Areas/health/index.md` is created with the `area` template rendered into it, `{{title}}` filled in with `health` and `{{date}}` filled in with today's date
+
+---
+
+## User Story 010 ✅
+
+- **Summary:** Capture a thought straight into a project, area, or resource
+- **Status:** Completed
+- **Depends on:** Story 001 (timestamp-fallback capture flow), Story 003, Story 004, Story 005 (project/area/resource scaffolding), Story 007 (editor pre-population)
+
+### Use Case
+
+- **As a** Tick user starting a new project, area, or resource from a fleeting idea
+- **I want to** run `tk new --project` (or `--area`/`--resource`) with no filename
+- **so that** I can write the content first in `$EDITOR` and let Tick infer the name, without giving up the scaffolding those categories get
+
+### Acceptance Criteria
+
+- **Scenario:** Capture directly into a new project
+- **Given:** I am inside an initialized PARA system with the default `project` template
+- **and Given:** my `$EDITOR` environment variable is set
+- **When:** I run `tk new --project` with no filename, and my editor opens pre-populated with the rendered `project` template, cursor at the title line
+- **and When:** I type `Website Redesign` at the cursor, save, and exit the editor
+- **Then:** Tick prompts `Create "website-redesign"?` with the inferred name pre-filled
+- **and Then:** if I accept the prompt, a directory `1-Projects/website-redesign` is created containing an `index.md` with the frontmatter and my heading exactly as I left them, and Tick prints the path to that `index.md`
+
+- **Scenario:** Capture directly into a new area
+- **Given:** I am inside an initialized PARA system with the default `area` template
+- **and Given:** my `$EDITOR` environment variable is set
+- **When:** I run `tk new --area` with no filename, and my editor opens pre-populated with the rendered `area` template
+- **and When:** I fill in the title, save, exit the editor, and accept the inferred name
+- **Then:** a directory `2-Areas/<inferred-name>` is created containing an `index.md` with the frontmatter and my content exactly as I left them, and Tick prints the path to that `index.md`
+
+- **Scenario:** Capture directly into a new resource
+- **Given:** I am inside an initialized PARA system with the default `resource` template
+- **and Given:** my `$EDITOR` environment variable is set
+- **When:** I run `tk new --resource` with no filename, and my editor opens pre-populated with the rendered `resource` template
+- **and When:** I fill in the title, save, exit the editor, and accept the inferred name
+- **Then:** a file `3-Resources/<inferred-name>.md` is created with the frontmatter and my content exactly as I left them, and Tick prints the path it created
+
+- **Scenario:** Leaving the template unmodified still falls back to a timestamp
+- **Given:** I am inside an initialized PARA system with the default `project` template
+- **and Given:** my `$EDITOR` environment variable is set
+- **When:** I run `tk new --project` with no filename, save the file exactly as it was pre-populated, and exit the editor
+- **Then:** Tick prompts with a name generated from the current timestamp instead of a note title, the same fallback used for a plain `tk new` capture (per story 001)
+
+- **Scenario:** Emptying the file still falls back to a timestamp
+- **Given:** I am inside an initialized PARA system with the default `project` template
+- **and Given:** my `$EDITOR` environment variable is set
+- **When:** I run `tk new --project` with no filename, delete everything the editor was pre-populated with, save an empty file, and exit the editor
+- **Then:** Tick prompts with a name generated from the current timestamp instead of a note title
+
+---

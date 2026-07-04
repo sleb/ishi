@@ -199,12 +199,19 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
   `items::create(ws, category, filename, &rendered)` directly, non-interactively;
   `category` is what makes `--project`/`--area`/`--resource` scaffold into the
   right place (and render the right template) instead of always `Inbox`/`note`.
-  When `filename` is `None`, seeds `$EDITOR` with the rendered `note` template
-  and prompts for the inferred name exactly as today, always into `Inbox` —
-  capturing directly into a project/area/resource with no filename is Story
-  010, not yet implemented. `main` maps `--project`/`--area`/`--resource`
-  (mutually exclusive, via a `clap` `ArgGroup`) to `Category`, defaulting to
-  `Inbox` when none are given.
+  When `filename` is `None`, seeds `$EDITOR` with `ws.config.templates.for_category(category)`
+  rendered with `{{title}}` empty (unknown yet) and `{{date}}` set to today,
+  then prompts for the inferred name and calls `items::create(ws, category, ...)`
+  — the same `category` used by the non-interactive branch, so
+  `--project`/`--area`/`--resource` scaffold into the right place (and seed
+  the right template) from an editor capture too, not just `Inbox`/`note`.
+  The confirm prompt's suggested default only appends
+  `ws.config.default_extension` when `!category.is_directory_style()` —
+  `Project`/`Area` suggest a bare directory name (`Create "website-redesign"?`),
+  while `Inbox`/`Resource` suggest a filename
+  (`Create "website-improvement-ideas.md"?`). `main` maps
+  `--project`/`--area`/`--resource` (mutually exclusive, via a `clap`
+  `ArgGroup`) to `Category`, defaulting to `Inbox` when none are given.
 - `run_init(cwd: &Path, name: Option<&str>) -> Result<String>` — resolves
   the target (`cwd` or `cwd.join(name)`) and its display form (`.` or
   `./<name>`), calls `workspace::init` (which runs `check_collision`
