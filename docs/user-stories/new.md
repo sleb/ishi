@@ -1,30 +1,5 @@
 # User Stories: `tk new`
 
-## User Story 009
-
-- **Summary:** Scaffolded project and area directories render the configured template into `index.md`
-- **Depends on:** Story 003 (project scaffold), Story 004 (area scaffold), Story 007 (template rendering)
-
-### Use Case
-
-- **As a** Tick user scaffolding a new project or area
-- **I want to** have the `project`/`area` template rendered into the generated `index.md`
-- **so that** every project and area starts with the same structure (status, standard, etc.) without me typing it by hand
-
-### Acceptance Criteria
-
-- **Scenario:** Scaffolded project index.md renders the `project` template
-- **Given:** I am inside an initialized PARA system with the default `project` template
-- **When:** I run `tk new --project website-redesign`
-- **Then:** `1-Projects/website-redesign/index.md` is created with the `project` template rendered into it, `{{title}}` filled in with `website-redesign` and `{{date}}` filled in with today's date
-
-- **Scenario:** Scaffolded area index.md renders the `area` template
-- **Given:** I am inside an initialized PARA system with the default `area` template
-- **When:** I run `tk new --area health`
-- **Then:** `2-Areas/health/index.md` is created with the `area` template rendered into it, `{{title}}` filled in with `health` and `{{date}}` filled in with today's date
-
----
-
 ## User Story 010
 
 - **Summary:** Capture a thought straight into a project, area, or resource
@@ -379,3 +354,29 @@
 - **Given:** I am inside an initialized PARA system with the default `resource` template
 - **When:** I run `tk new --resource recipe-ideas`
 - **Then:** `3-Resources/recipe-ideas.md` is created with the `resource` template rendered into it, `{{title}}` filled in with `recipe-ideas` and `{{date}}` filled in with today's date
+
+---
+
+## User Story 009 ✅
+
+- **Summary:** Scaffolded project and area directories render the configured template into `index.md`
+- **Status:** Completed — satisfied by Story 008's implementation, since `run_new`'s named-creation path renders `templates.for_category(category)` for every category, not just Inbox/Resource
+- **Depends on:** Story 003 (project scaffold), Story 004 (area scaffold), Story 007 (template rendering)
+
+### Use Case
+
+- **As a** Tick user scaffolding a new project or area
+- **I want to** have the `project`/`area` template rendered into the generated `index.md`
+- **so that** every project and area starts with the same structure (status, standard, etc.) without me typing it by hand
+
+### Acceptance Criteria
+
+- **Scenario:** Scaffolded project index.md renders the `project` template
+- **Given:** I am inside an initialized PARA system with the default `project` template
+- **When:** I run `tk new --project website-redesign`
+- **Then:** `1-Projects/website-redesign/index.md` is created with the `project` template rendered into it, `{{title}}` filled in with `website-redesign` and `{{date}}` filled in with today's date
+
+- **Scenario:** Scaffolded area index.md renders the `area` template
+- **Given:** I am inside an initialized PARA system with the default `area` template
+- **When:** I run `tk new --area health`
+- **Then:** `2-Areas/health/index.md` is created with the `area` template rendered into it, `{{title}}` filled in with `health` and `{{date}}` filled in with today's date

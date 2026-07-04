@@ -285,6 +285,8 @@ mod tests {
         );
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("# website-redesign"));
+        let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+        assert!(content.contains(&format!("last_updated: {today}")));
     }
 
     #[test]
@@ -308,6 +310,8 @@ mod tests {
         assert_eq!(path, dir.path().join("2-Areas/health/index.md"));
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("# health"));
+        let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+        assert!(content.contains(&format!("last_updated: {today}")));
     }
 
     #[test]
