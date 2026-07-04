@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use chrono::Local;
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::category::Category;
 use crate::config;
@@ -66,15 +67,32 @@ pub fn run_new(
 ) -> anyhow::Result<PathBuf> {
     let path = match filename {
         Some(name) => {
-            let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
-            let rendered =
-                config::render(ws.config.templates.for_category(category), &name, &today)
-                    .replace("{{cursor}}", "");
+            let now = Local::now();
+            let today = now.date_naive().format("%Y-%m-%d").to_string();
+            let time = now.format("%H:%M").to_string();
+            let uuid = Uuid::new_v4().to_string();
+            let rendered = config::render(
+                ws.config.templates.for_category(category),
+                &name,
+                &today,
+                &time,
+                &uuid,
+            )
+            .replace("{{cursor}}", "");
             items::create(ws, category, &name, &rendered)?
         }
         None => {
-            let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
-            let seed = config::render(ws.config.templates.for_category(category), "", &today);
+            let now = Local::now();
+            let today = now.date_naive().format("%Y-%m-%d").to_string();
+            let time = now.format("%H:%M").to_string();
+            let uuid = Uuid::new_v4().to_string();
+            let seed = config::render(
+                ws.config.templates.for_category(category),
+                "",
+                &today,
+                &time,
+                &uuid,
+            );
             let (content, suggested) = editor.capture(&seed)?;
             let default = if category.is_directory_style() {
                 suggested
@@ -141,6 +159,29 @@ mod tests {
             root: root.to_path_buf(),
             config: Config::default(),
         }
+    }
+
+    fn workspace_with_note_template(root: &std::path::Path, template: &str) -> Workspace {
+        let mut config = Config::default();
+        config.templates.note = template.to_string();
+        Workspace {
+            root: root.to_path_buf(),
+            config,
+        }
+    }
+
+    fn contains_hh_mm_time(text: &str) -> bool {
+        text.split_whitespace().any(|word| {
+            word.len() == 5
+                && word.as_bytes()[2] == b':'
+                && word[..2].chars().all(|c| c.is_ascii_digit())
+                && word[3..].chars().all(|c| c.is_ascii_digit())
+        })
+    }
+
+    fn contains_uuid(text: &str) -> bool {
+        text.split_whitespace()
+            .any(|word| uuid::Uuid::parse_str(word).is_ok())
     }
 
     struct PanicEditor;
@@ -486,6 +527,143 @@ mod tests {
         let content = fs::read_to_string(&path).unwrap();
         let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
         assert!(content.contains(&format!("last_updated: {today}")));
+    }
+
+    #[test]
+    fn named_note_renders_time() {
+        let dir = tempdir().unwrap();
+        let ws = workspace_with_note_template(dir.path(), "captured at {{time}}\n");
+        let editor = PanicEditor;
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
+
+        let path = run_new(
+            &ws,
+            &editor,
+            &mut ui,
+            Category::Inbox,
+            Some("my-file".to_string()),
+        )
+        .unwrap();
+
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(contains_hh_mm_time(&content), "content was: {content}");
+    }
+
+    #[test]
+    fn editor_capture_renders_time() {
+        use std::cell::RefCell;
+
+        struct RecordingEditor {
+            seen_seed: RefCell<String>,
+        }
+
+        impl Editor for RecordingEditor {
+            fn capture(&self, seed: &str) -> Result<(String, String), EditorError> {
+                *self.seen_seed.borrow_mut() = seed.to_string();
+                Ok(("# Title\n".to_string(), "title".to_string()))
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        let ws = workspace_with_note_template(dir.path(), "captured at {{time}}\n");
+        let editor = RecordingEditor {
+            seen_seed: RefCell::new(String::new()),
+        };
+        let mut ui = FakeUi {
+            confirm_response: "title".to_string(),
+        };
+
+        run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
+
+        let seed = editor.seen_seed.borrow();
+        assert!(!seed.contains("{{time}}"));
+        assert!(contains_hh_mm_time(&seed), "seed was: {seed}");
+    }
+
+    #[test]
+    fn named_note_renders_uuid() {
+        let dir = tempdir().unwrap();
+        let ws = workspace_with_note_template(dir.path(), "id: {{uuid}}\n");
+        let editor = PanicEditor;
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
+
+        let path = run_new(
+            &ws,
+            &editor,
+            &mut ui,
+            Category::Inbox,
+            Some("my-file".to_string()),
+        )
+        .unwrap();
+
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(contains_uuid(&content), "content was: {content}");
+    }
+
+    #[test]
+    fn editor_capture_renders_uuid() {
+        use std::cell::RefCell;
+
+        struct RecordingEditor {
+            seen_seed: RefCell<String>,
+        }
+
+        impl Editor for RecordingEditor {
+            fn capture(&self, seed: &str) -> Result<(String, String), EditorError> {
+                *self.seen_seed.borrow_mut() = seed.to_string();
+                Ok(("# Title\n".to_string(), "title".to_string()))
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        let ws = workspace_with_note_template(dir.path(), "id: {{uuid}}\n");
+        let editor = RecordingEditor {
+            seen_seed: RefCell::new(String::new()),
+        };
+        let mut ui = FakeUi {
+            confirm_response: "title".to_string(),
+        };
+
+        run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
+
+        let seed = editor.seen_seed.borrow();
+        assert!(!seed.contains("{{uuid}}"));
+        assert!(contains_uuid(&seed), "seed was: {seed}");
+    }
+
+    #[test]
+    fn two_notes_get_different_uuids() {
+        let dir = tempdir().unwrap();
+        let ws = workspace_with_note_template(dir.path(), "id: {{uuid}}\n");
+        let editor = PanicEditor;
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
+
+        let first_path = run_new(
+            &ws,
+            &editor,
+            &mut ui,
+            Category::Inbox,
+            Some("first-note".to_string()),
+        )
+        .unwrap();
+        let second_path = run_new(
+            &ws,
+            &editor,
+            &mut ui,
+            Category::Inbox,
+            Some("second-note".to_string()),
+        )
+        .unwrap();
+
+        let first_content = fs::read_to_string(&first_path).unwrap();
+        let second_content = fs::read_to_string(&second_path).unwrap();
+        assert_ne!(first_content, second_content);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # User Stories: `tk new`
 
-## User Story 011
+## User Story 011 ✅
 
 - **Summary:** Templates can stamp the current time, not just the date
 - **Depends on:** Story 007, Story 008 (template rendering, both non-interactive and editor pre-population)
@@ -26,7 +26,7 @@
 
 ---
 
-## User Story 012
+## User Story 012 ✅
 
 - **Summary:** Templates can generate a unique id for Zettelkasten-style notes
 - **Depends on:** Story 007, Story 008 (template rendering, both non-interactive and editor pre-population)

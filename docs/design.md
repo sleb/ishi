@@ -63,9 +63,15 @@ Parses `.tick.toml`. Pure data, one file read.
   `3-Resources`, `4-Archive`, `md`, and the default `note` template.
 - `Config::load(path: &Path) -> Result<Config>` — reads `.tick.toml` if present,
   falls back to defaults for any field it omits.
-- `render(template: &str, title: &str, date: &str) -> String` — fills in
-  `{{date}}` and `{{title}}`, leaving `{{cursor}}` untouched (that marker is
-  `Editor`'s job — see below).
+- `render(template: &str, title: &str, date: &str, time: &str, uuid: &str) -> String`
+  — fills in `{{date}}`, `{{title}}`, `{{time}}`, and `{{uuid}}`, leaving
+  `{{cursor}}` untouched (that marker is `Editor`'s job — see below). All
+  five values are caller-supplied plain strings, so `render` stays a pure
+  function with no dependency on `chrono`/`uuid` internals — `cli::run_new`
+  computes `date`/`time` from one `Local::now()` call and generates one
+  `Uuid::new_v4()` per invocation, even when the active template doesn't
+  reference `{{time}}`/`{{uuid}}` (negligible cost, and avoids branching on
+  template contents).
 
 ### `workspace`
 

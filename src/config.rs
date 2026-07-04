@@ -68,13 +68,16 @@ impl Templates {
     }
 }
 
-/// Fills in `{{date}}` and `{{title}}` in `template`. Leaves `{{cursor}}`
-/// untouched — interpreting that marker (positioning the editor's cursor,
-/// then stripping it) is `Editor`'s job, not the renderer's.
-pub fn render(template: &str, title: &str, date: &str) -> String {
+/// Fills in `{{date}}`, `{{title}}`, `{{time}}`, and `{{uuid}}` in
+/// `template`. Leaves `{{cursor}}` untouched — interpreting that marker
+/// (positioning the editor's cursor, then stripping it) is `Editor`'s job,
+/// not the renderer's.
+pub fn render(template: &str, title: &str, date: &str, time: &str, uuid: &str) -> String {
     template
         .replace("{{date}}", date)
         .replace("{{title}}", title)
+        .replace("{{time}}", time)
+        .replace("{{uuid}}", uuid)
 }
 
 #[derive(Debug, Error)]
@@ -189,11 +192,54 @@ mod tests {
     fn render_fills_date_and_title_but_leaves_cursor_marker() {
         let template = "---\nlast_updated: {{date}}\n---\n# {{cursor}}{{title}}\n";
 
-        let rendered = render(template, "", "2026-07-03");
+        let rendered = render(template, "", "2026-07-03", "14:32", "uuid-value");
 
         assert_eq!(
             rendered,
             "---\nlast_updated: 2026-07-03\n---\n# {{cursor}}\n"
+        );
+    }
+
+    #[test]
+    fn render_fills_time() {
+        let template = "captured at {{time}}";
+
+        let rendered = render(template, "", "2026-07-03", "14:32", "uuid-value");
+
+        assert_eq!(rendered, "captured at 14:32");
+    }
+
+    #[test]
+    fn render_fills_uuid() {
+        let template = "id: {{uuid}}";
+
+        let rendered = render(
+            template,
+            "",
+            "2026-07-03",
+            "14:32",
+            "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        );
+
+        assert_eq!(rendered, "id: f47ac10b-58cc-4372-a567-0e02b2c3d479");
+    }
+
+    #[test]
+    fn render_fills_all_markers_together_leaving_cursor_marker() {
+        let template =
+            "date={{date}} title={{title}} time={{time}} uuid={{uuid}} cursor={{cursor}}";
+
+        let rendered = render(
+            template,
+            "My Title",
+            "2026-07-03",
+            "14:32",
+            "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        );
+
+        assert_eq!(
+            rendered,
+            "date=2026-07-03 title=My Title time=14:32 uuid=f47ac10b-58cc-4372-a567-0e02b2c3d479 cursor={{cursor}}"
         );
     }
 
