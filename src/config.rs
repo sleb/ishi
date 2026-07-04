@@ -104,20 +104,18 @@ impl Config {
             config.default_extension = ext;
         }
         if let Some(dirs) = parsed.category_dirs {
-            if let Some(v) = dirs.inbox {
-                config.category_dirs[0] = v;
-            }
-            if let Some(v) = dirs.project {
-                config.category_dirs[1] = v;
-            }
-            if let Some(v) = dirs.area {
-                config.category_dirs[2] = v;
-            }
-            if let Some(v) = dirs.resource {
-                config.category_dirs[3] = v;
-            }
-            if let Some(v) = dirs.archive {
-                config.category_dirs[4] = v;
+            // Order matches `Category as usize` (Inbox, Project, Area, Resource, Archive).
+            let overrides = [
+                dirs.inbox,
+                dirs.project,
+                dirs.area,
+                dirs.resource,
+                dirs.archive,
+            ];
+            for (i, value) in overrides.into_iter().enumerate() {
+                if let Some(value) = value {
+                    config.category_dirs[i] = value;
+                }
             }
         }
         Ok(config)

@@ -93,14 +93,8 @@ impl Workspace {
     }
 
     pub fn category_dir(&self, category: Category) -> PathBuf {
-        let index = match category {
-            Category::Inbox => 0,
-            Category::Project => 1,
-            Category::Area => 2,
-            Category::Resource => 3,
-            Category::Archive => 4,
-        };
-        self.root.join(&self.config.category_dirs[index])
+        self.root
+            .join(&self.config.category_dirs[category as usize])
     }
 }
 

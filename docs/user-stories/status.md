@@ -11,7 +11,7 @@ view of those categories instead).
 There is deliberately no staleness threshold or flagging. Earlier drafts of
 this doc considered a `stale_after_days` config option, but `status` just
 reports the facts (`updated: ...`, `reviewed: ...`) and leaves the judgment
-call to the user — see [spec-gaps.md](../spec-gaps.md).
+call to the user.
 
 Column/fact definitions, used throughout:
 

@@ -1,10 +1,14 @@
+/// Discriminants are explicit because `Category as usize` indexes
+/// `Config::category_dirs` (see `Workspace::category_dir`) — reordering a
+/// variant without updating its value here would silently break that
+/// mapping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Category {
-    Inbox,
-    Project,
-    Area,
-    Resource,
-    Archive,
+    Inbox = 0,
+    Project = 1,
+    Area = 2,
+    Resource = 3,
+    Archive = 4,
 }
 
 impl Category {

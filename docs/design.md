@@ -46,11 +46,21 @@ Shared vocabulary type, no I/O.
 
 Parses `.tick.toml`. Pure data, one file read.
 
-- `struct Config { category_dirs: [String; 5], default_extension: String }`
+- `struct Config { category_dirs: [String; 5], default_extension: String, templates: Templates }`
+  — `category_dirs` is indexed by `Category as usize`, so `Category`'s
+  discriminants and this array's order must stay in sync (enforced by
+  `Workspace::category_dir` using the cast directly, rather than a
+  hand-written match).
+- `struct Templates { note: String }` — one field per category template;
+  currently only `note` exists (see roadmap item 2 for `daily`/`project`/
+  `area`/`resource`, not yet added).
 - `Config::default() -> Config` — `0-Inbox`, `1-Projects`, `2-Areas`,
-  `3-Resources`, `4-Archive`, `md`.
+  `3-Resources`, `4-Archive`, `md`, and the default `note` template.
 - `Config::load(path: &Path) -> Result<Config>` — reads `.tick.toml` if present,
   falls back to defaults for any field it omits.
+- `render(template: &str, title: &str, date: &str) -> String` — fills in
+  `{{date}}` and `{{title}}`, leaving `{{cursor}}` untouched (that marker is
+  `Editor`'s job — see below).
 
 ### `workspace`
 

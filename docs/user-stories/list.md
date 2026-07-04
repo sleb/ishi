@@ -3,10 +3,7 @@
 `tk list` originally just printed bare paths (one per line). These stories
 redesign it to print a small table — **Name**, **Title**, **Updated** — so a
 user can tell what a note is about and how fresh it is without opening every
-file. See gap in [spec-gaps.md](../spec-gaps.md) (§1, `list`) for the
-ambiguities these stories resolve: filter semantics, empty-category output,
-and the project/area-lists-dirs vs resource/inbox/archive-lists-files
-distinction.
+file.
 
 Column definitions, used throughout:
 

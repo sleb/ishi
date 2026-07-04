@@ -2,8 +2,7 @@
 
 `tk daily` is sugar for `tk new --daily` (see [new.md](new.md) story 013) — a
 single command for today's note in the Inbox, without having to know or type
-today's date. See gap 1 in [spec-gaps.md](../spec-gaps.md) for the ambiguities
-these stories resolve.
+today's date.
 
 ## User Story 001
 
