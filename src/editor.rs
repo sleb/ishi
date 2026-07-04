@@ -18,23 +18,32 @@ pub enum EditorError {
 }
 
 pub trait Editor {
-    /// Returns `(content, suggested_filename_no_ext)`.
-    fn capture(&self) -> Result<(String, String), EditorError>;
+    /// Opens `$EDITOR` on `seed` (the rendered template, with `{{title}}`
+    /// empty and `{{cursor}}` marking the starting line) and returns
+    /// `(content, suggested_filename_no_ext)`.
+    fn capture(&self, seed: &str) -> Result<(String, String), EditorError>;
 }
 
 pub struct RealEditor;
 
 impl Editor for RealEditor {
-    fn capture(&self) -> Result<(String, String), EditorError> {
+    fn capture(&self, seed: &str) -> Result<(String, String), EditorError> {
         let editor = env::var("EDITOR").map_err(|_| EditorError::NotSet)?;
         if editor.trim().is_empty() {
             return Err(EditorError::NotSet);
         }
 
+        let (content, cursor_line) = locate_cursor(seed);
+
         let file = Builder::new().suffix(".md").tempfile()?;
         let path = file.path().to_path_buf();
+        std::fs::write(&path, &content)?;
 
-        let status = Command::new(&editor).arg(&path).status()?;
+        let mut command = Command::new(&editor);
+        if let Some(line) = cursor_line {
+            command.arg(format!("+{line}"));
+        }
+        let status = command.arg(&path).status()?;
         if !status.success() {
             return Err(EditorError::Aborted);
         }
@@ -45,24 +54,81 @@ impl Editor for RealEditor {
     }
 }
 
-/// Suggests a filename (without extension) from `content`'s first line,
-/// falling back to a timestamp-based name if that line is blank.
+/// Strips the `{{cursor}}` marker out of `seed`, returning the content to
+/// write to the scratch file along with the 1-based line the marker was on
+/// (for the editor's `+<line>` argument), or `None` if `seed` has no marker.
+fn locate_cursor(seed: &str) -> (String, Option<usize>) {
+    match seed.find("{{cursor}}") {
+        Some(idx) => {
+            let line = seed[..idx].matches('\n').count() + 1;
+            (seed.replacen("{{cursor}}", "", 1), Some(line))
+        }
+        None => (seed.to_string(), None),
+    }
+}
+
+/// Suggests a filename (without extension) from `content`: skips a leading
+/// YAML frontmatter block if present, then looks for the first Markdown
+/// heading line (any `#` level) with non-blank text; a heading with empty
+/// text doesn't count as found, and the search continues past it. Falls
+/// back to the first non-blank, non-heading line, then to a timestamp-based
+/// name if nothing else is found.
 pub fn suggest_filename(content: &str) -> String {
     suggest_filename_at(content, SystemTime::now())
 }
 
 fn suggest_filename_at(content: &str, now: SystemTime) -> String {
-    let title = content
-        .lines()
-        .next()
-        .unwrap_or("")
-        .trim_start_matches('#')
-        .trim();
-    if title.is_empty() {
-        timestamp_slug(now)
-    } else {
-        slugify(title)
+    let lines: Vec<&str> = content.lines().collect();
+    let body = skip_frontmatter(&lines);
+
+    if let Some(title) = find_heading_text(body) {
+        return slugify(&title);
     }
+    if let Some(line) = first_fallback_line(body) {
+        return slugify(line);
+    }
+    timestamp_slug(now)
+}
+
+/// Skips a leading `---`-delimited frontmatter block, if `lines` starts
+/// with one.
+fn skip_frontmatter<'a>(lines: &'a [&'a str]) -> &'a [&'a str] {
+    if lines.first() != Some(&"---") {
+        return lines;
+    }
+    match lines.iter().skip(1).position(|line| *line == "---") {
+        Some(relative_idx) => &lines[relative_idx + 2..],
+        None => lines,
+    }
+}
+
+fn heading_text(line: &str) -> Option<&str> {
+    let trimmed = line.trim_start();
+    let rest = trimmed.strip_prefix('#')?;
+    Some(rest.trim_start_matches('#').trim())
+}
+
+fn find_heading_text(lines: &[&str]) -> Option<String> {
+    for line in lines {
+        if let Some(text) = heading_text(line)
+            && !text.is_empty()
+        {
+            return Some(text.to_string());
+        }
+    }
+    None
+}
+
+fn first_fallback_line<'a>(lines: &[&'a str]) -> Option<&'a str> {
+    lines.iter().copied().find(|line| {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            return false;
+        }
+        // A heading line with no text was already rejected as a title
+        // candidate; it isn't a fallback candidate either.
+        heading_text(line).is_none_or(|text| !text.is_empty())
+    })
 }
 
 fn slugify(input: &str) -> String {
@@ -104,19 +170,33 @@ mod tests {
     }
 
     #[test]
+    fn heading_further_down_is_still_used() {
+        let content = "---\nlast_updated: 2026-07-03\n---\nSome body text.\n# Actual Title\n";
+        assert_eq!(suggest_filename_at(content, fixed_time()), "actual-title");
+    }
+
+    #[test]
+    fn no_heading_falls_back_to_first_line() {
+        let content = "---\nlast_updated: 2026-07-03\n---\nJust plain body text.\n";
+        assert_eq!(
+            suggest_filename_at(content, fixed_time()),
+            "just-plain-body-text"
+        );
+    }
+
+    #[test]
+    fn unmodified_template_falls_back_to_timestamp() {
+        // The cursor marker was stripped, leaving an empty heading.
+        let content = "---\nlast_updated: 2026-07-03\n---\n# \n";
+        let expected = timestamp_slug(fixed_time());
+        assert_eq!(suggest_filename_at(content, fixed_time()), expected);
+    }
+
+    #[test]
     fn empty_note_falls_back_to_timestamp() {
         let expected = timestamp_slug(fixed_time());
         assert_eq!(suggest_filename_at("", fixed_time()), expected);
         assert_eq!(suggest_filename_at("   \n\n", fixed_time()), expected);
-    }
-
-    #[test]
-    fn blank_first_line_falls_back_to_timestamp() {
-        let expected = timestamp_slug(fixed_time());
-        assert_eq!(
-            suggest_filename_at("\n# Title On Line 2\n", fixed_time()),
-            expected
-        );
     }
 
     #[test]
@@ -136,5 +216,25 @@ mod tests {
         for (input, expected) in cases {
             assert_eq!(suggest_filename_at(input, fixed_time()), expected);
         }
+    }
+
+    #[test]
+    fn locate_cursor_finds_line_and_strips_marker() {
+        let seed = "---\nlast_updated: 2026-07-03\n---\n# {{cursor}}\n";
+
+        let (content, line) = locate_cursor(seed);
+
+        assert_eq!(content, "---\nlast_updated: 2026-07-03\n---\n# \n");
+        assert_eq!(line, Some(4));
+    }
+
+    #[test]
+    fn locate_cursor_returns_none_when_marker_absent() {
+        let seed = "no marker here\n";
+
+        let (content, line) = locate_cursor(seed);
+
+        assert_eq!(content, seed);
+        assert_eq!(line, None);
     }
 }

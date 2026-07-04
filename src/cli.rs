@@ -1,9 +1,11 @@
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+use chrono::Local;
 use thiserror::Error;
 
 use crate::category::Category;
+use crate::config;
 use crate::editor::Editor;
 use crate::items;
 use crate::workspace::{self, Workspace};
@@ -64,7 +66,9 @@ pub fn run_new(
     let path = match filename {
         Some(name) => items::create(ws, Category::Inbox, &name, "")?,
         None => {
-            let (content, suggested) = editor.capture()?;
+            let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+            let seed = config::render(&ws.config.templates.note, "", &today);
+            let (content, suggested) = editor.capture(&seed)?;
             let default = format!("{suggested}.{}", ws.config.default_extension);
             let chosen = ui.confirm(&format!("Create \"{default}\"?"), &default)?;
             items::create(ws, Category::Inbox, &chosen, &content)?
@@ -102,7 +106,7 @@ mod tests {
     }
 
     impl Editor for FakeEditor {
-        fn capture(&self) -> Result<(String, String), EditorError> {
+        fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
             Ok((self.content.clone(), self.suggested.clone()))
         }
     }
@@ -188,12 +192,44 @@ mod tests {
     }
 
     #[test]
+    fn seeds_editor_with_rendered_note_template() {
+        use std::cell::RefCell;
+
+        struct RecordingEditor {
+            seen_seed: RefCell<String>,
+        }
+
+        impl Editor for RecordingEditor {
+            fn capture(&self, seed: &str) -> Result<(String, String), EditorError> {
+                *self.seen_seed.borrow_mut() = seed.to_string();
+                Ok(("# Title\n".to_string(), "title".to_string()))
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let editor = RecordingEditor {
+            seen_seed: RefCell::new(String::new()),
+        };
+        let mut ui = FakeUi {
+            confirm_response: "title.md".to_string(),
+        };
+
+        run_new(&ws, &editor, &mut ui, None).unwrap();
+
+        let seed = editor.seen_seed.borrow();
+        assert!(seed.contains("{{cursor}}"));
+        assert!(!seed.contains("{{title}}"));
+        assert!(!seed.contains("{{date}}"));
+    }
+
+    #[test]
     fn named_filename_skips_editor() {
         let dir = tempdir().unwrap();
         let ws = workspace(dir.path());
         struct PanicEditor;
         impl Editor for PanicEditor {
-            fn capture(&self) -> Result<(String, String), EditorError> {
+            fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
                 panic!("editor should not be invoked when a filename is given")
             }
         }

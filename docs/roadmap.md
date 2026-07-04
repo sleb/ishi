@@ -19,6 +19,45 @@ see the _Why here_ line.
 | `config`      | Not started — `Config::load` reads one TOML file with no layering; no `templates` table; no `config` subcommand                                                             |
 | `completions` | Not started                                                                                                                                                                 |
 
+## Dependency graph
+
+Item-level view of the sequencing below — an edge means the upstream item is
+a real implementation dependency of the downstream one (not just a shared
+naming convention; see the footnote after the diagram for two cross-references
+that are docs-only and deliberately _not_ drawn here).
+
+```
+                                   init (done)
+                                       |
+                 +----------------------+----------------------+
+                 |                                              |
+                 v                                              v
+          1. new: wire                                   9. completions
+        --project/area/resource                          (no other deps)
+                 |
+     +-----------+------------+------------+
+     |           |            |
+     v           v            v
+ 4. list     6. mv      2. config layering
+     |           |          + templates
+     v           |         /            \
+ 5. status       |        v              v
+     |           |    3. daily      8. config CLI
+     +-----+-----+
+           |
+           v
+      7. review
+```
+
+- `list` → `review` (list.md 001 cites review.md 001's "raw days ago"
+  phrasing as a shared convention) is a docs-only cross-reference, not a
+  build blocker — `list` ships first per the sequencing below regardless.
+- `completions` (item 9) lists every other command's Story 001 as a
+  "depends on" in completions.md 003, but that's `clap_complete` describing
+  what the generated script must cover, not implementation work blocked on
+  those commands landing — completions can be built against however much of
+  the CLI exists at the time.
+
 ## Now
 
 ### 1. Finish `new`: wire `--project` / `--area` / `--resource`
@@ -28,7 +67,8 @@ files correctly (see `src/items.rs` tests) — the only gap is `main.rs`'s
 `Commands::New` doesn't expose the flags yet. Smallest remaining piece of an
 already-started command.
 
-- Closes user-stories/new.md 003–006.
+- Covers user-stories/new.md 003–006. (Story 002, the named-Inbox-note case,
+  is already Completed; init.md 001–004 are Done.)
 
 ## Next
 
@@ -67,6 +107,11 @@ plumbing that several later commands need, so it goes first in this group:
   implementing — it may already have LSP support, or heading/frontmatter
   parsing logic, that could be reused as a shared library instead of
   reimplementing here.
+- Covers user-stories/new.md 001, 007 (editor pre-population and
+  timestamp-fallback inference), 008, 009 (template rendering for named
+  notes and scaffolded `index.md`), 010 (capture into `--project`/`--area`/
+  `--resource` with no filename — needs item 1's flags plus this item's
+  rendering), and 011, 012 (`{{time}}` and `{{uuid}}` placeholders).
 
 ### 3. `tk daily`
 
@@ -111,6 +156,8 @@ More involved: wrapping a flat file into a directory when moving into
 to `archive`. No dependents among items 3–5, but **item 7 (`review`) calls
 `items::mv` directly** per `docs/design.md`, so it has to land before review.
 
+- Covers user-stories/mv.md 001.
+
 ## Later
 
 ### 7. `tk review`
@@ -118,6 +165,8 @@ to `archive`. No dependents among items 3–5, but **item 7 (`review`) calls
 Composes `mv` (item 6) with the `Ui` trait already defined in `src/cli.rs`
 (`confirm`/`choose` are implemented and tested via `run_init`/`run_new`), plus
 `items::write_last_reviewed` (item 5) on `[k]eep`. Blocked on items 5 and 6.
+
+- Covers user-stories/review.md 001–003.
 
 ### 8. `tk config` CLI surface
 
@@ -135,6 +184,12 @@ Pure `clap_complete` wiring, no dependencies on anything else in this list.
 Lowest priority because it has no user-facing value until the rest of the
 command set stabilizes — completion scripts for half-finished commands are
 churn.
+
+- Covers user-stories/completions.md 001–003. Story 003 (completions must
+  stay current with `tk`'s commands) lists every other command's Story 001
+  as a "depends on," but that's describing what the generated script must
+  cover, not build order — `clap_complete` derives the script from whatever
+  subcommands exist in the CLI definition at the time.
 
 ## Explicitly out of scope for this pass
 

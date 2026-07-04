@@ -102,11 +102,13 @@ structured results — no printing, no prompting.
   case-insensitive substring against `name` or `title`.
 - `infer_title(content: &str) -> Option<String>` — skips a leading YAML
   frontmatter block if present, then returns the first Markdown heading
-  line's text (any `#` level), or `None` if none is found. Conceptually the
-  same frontmatter-skip-then-find-heading logic as
-  `editor::suggest_filename` (which then slugifies the heading into a
-  filename), implemented independently in `items` — `items` and `editor`
-  still don't depend on each other, per the module boundaries below.
+  line's text (any `#` level), or `None` if none is found. A heading line
+  with empty text after the marker doesn't count as found; the search
+  continues to any heading further down. Conceptually the same
+  frontmatter-skip-then-find-heading logic as `editor::suggest_filename`
+  (which then slugifies the heading into a filename), implemented
+  independently in `items` — `items` and `editor` still don't depend on
+  each other, per the module boundaries below.
 - `struct StatusItem { name: String, title: String, updated_days_ago: u64, reviewed_days_ago: Option<u64> }`
   — one per `Project`/`Area`; `name`/`title`/`updated_days_ago` mirror
   `ListedItem` (same `infer_title` + mtime sourcing); `reviewed_days_ago` is
@@ -142,11 +144,15 @@ editor process or racing the system clock.
   `(content, suggested_filename)`.
 - `suggest_filename(content: &str) -> String` — pure. Skips a leading YAML
   frontmatter block if present, then looks for the first Markdown heading
-  line (any `#` level) in the remainder and slugifies its text; if no
-  heading is found, falls back to the first non-blank line after the
-  frontmatter; if that's also absent, falls back to a timestamp-based name.
-  Internally delegates to a `SystemTime`-parameterized helper so the
-  timestamp fallback is deterministic in tests.
+  line (any `#` level) with non-blank text after the marker in the
+  remainder and slugifies it; a heading line whose text is empty (e.g. a
+  pre-populated `# {{cursor}}` title left untouched) doesn't count as
+  found — the search continues past it, including to headings further
+  down the file. If no such heading is found, falls back to the first
+  non-blank line after the frontmatter; if that's also absent (or the only
+  candidate was the blank heading with no other content), falls back to a
+  timestamp-based name. Internally delegates to a `SystemTime`-parameterized
+  helper so the timestamp fallback is deterministic in tests.
 
 ### `review`
 

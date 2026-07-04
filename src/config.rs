@@ -9,6 +9,7 @@ pub struct Config {
     /// Indexed by `Category as usize` (Inbox, Project, Area, Resource, Archive).
     pub category_dirs: [String; 5],
     pub default_extension: String,
+    pub templates: Templates,
 }
 
 impl Default for Config {
@@ -23,8 +24,31 @@ impl Default for Config {
             ]
             .map(String::from),
             default_extension: "md".to_string(),
+            templates: Templates::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Templates {
+    pub note: String,
+}
+
+impl Default for Templates {
+    fn default() -> Self {
+        Self {
+            note: "---\nlast_updated: {{date}}\n---\n# {{cursor}}{{title}}\n".to_string(),
+        }
+    }
+}
+
+/// Fills in `{{date}}` and `{{title}}` in `template`. Leaves `{{cursor}}`
+/// untouched — interpreting that marker (positioning the editor's cursor,
+/// then stripping it) is `Editor`'s job, not the renderer's.
+pub fn render(template: &str, title: &str, date: &str) -> String {
+    template
+        .replace("{{date}}", date)
+        .replace("{{title}}", title)
 }
 
 #[derive(Debug, Error)]
@@ -135,6 +159,18 @@ mod tests {
         assert_eq!(config.default_extension, "txt");
         assert_eq!(config.category_dirs[0], "Inbox");
         assert_eq!(config.category_dirs[1], "1-Projects");
+    }
+
+    #[test]
+    fn render_fills_date_and_title_but_leaves_cursor_marker() {
+        let template = "---\nlast_updated: {{date}}\n---\n# {{cursor}}{{title}}\n";
+
+        let rendered = render(template, "", "2026-07-03");
+
+        assert_eq!(
+            rendered,
+            "---\nlast_updated: 2026-07-03\n---\n# {{cursor}}\n"
+        );
     }
 
     #[test]
