@@ -3,7 +3,7 @@ use std::env;
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 
-use tick::category::Category;
+use tick::category::Kind;
 use tick::cli::{self, TerminalUi};
 use tick::editor::RealEditor;
 use tick::workspace::Workspace;
@@ -23,6 +23,8 @@ enum Commands {
         #[command(flatten)]
         category: NewCategory,
     },
+    /// Create (or open) today's daily note in the Inbox.
+    Daily,
     /// Scaffold a PARA system.
     Init { name: Option<String> },
 }
@@ -39,20 +41,36 @@ struct NewCategory {
     /// Create a flat resource file instead of an Inbox file.
     #[arg(long)]
     resource: bool,
+    /// Create (or open) today's daily note instead of an Inbox file.
+    #[arg(long, conflicts_with = "filename")]
+    daily: bool,
 }
 
 impl NewCategory {
-    fn into_category(self) -> Category {
+    fn into_kind(self) -> Kind {
         if self.project {
-            Category::Project
+            Kind::Project
         } else if self.area {
-            Category::Area
+            Kind::Area
         } else if self.resource {
-            Category::Resource
+            Kind::Resource
+        } else if self.daily {
+            Kind::Daily
         } else {
-            Category::Inbox
+            Kind::Inbox
         }
     }
+}
+
+fn run_daily_command(ws: &Workspace) -> anyhow::Result<()> {
+    if cli::daily_note_exists(ws) {
+        println!("Opening $EDITOR...");
+    }
+    let editor = RealEditor;
+    if let cli::DailyOutcome::Created(path) = cli::run_daily(ws, &editor)? {
+        println!("Created {}", path.display());
+    }
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
@@ -66,6 +84,17 @@ fn main() -> anyhow::Result<()> {
             let message = cli::run_init(&cwd, name.as_deref())?;
             println!("{message}");
         }
+        Commands::Daily => {
+            let ws = Workspace::discover(&cwd).context("failed to find a PARA workspace")?;
+            run_daily_command(&ws)?;
+        }
+        Commands::New {
+            filename: _,
+            category,
+        } if category.into_kind() == Kind::Daily => {
+            let ws = Workspace::discover(&cwd).context("failed to find a PARA workspace")?;
+            run_daily_command(&ws)?;
+        }
         Commands::New { filename, category } => {
             let ws = Workspace::discover(&cwd).context("failed to find a PARA workspace")?;
             if filename.is_none() {
@@ -73,7 +102,7 @@ fn main() -> anyhow::Result<()> {
             }
             let editor = RealEditor;
             let mut ui = TerminalUi;
-            let path = cli::run_new(&ws, &editor, &mut ui, category.into_category(), filename)?;
+            let path = cli::run_new(&ws, &editor, &mut ui, category.into_kind(), filename)?;
             println!("Created {}", path.display());
         }
     }
@@ -154,8 +183,88 @@ mod tests {
     }
 
     #[test]
-    fn into_category_defaults_to_inbox() {
-        assert_eq!(NewCategory::default().into_category(), Category::Inbox);
+    fn parses_new_daily() {
+        let cli = Cli::parse_from(["tk", "new", "--daily"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::New {
+                filename: None,
+                category: NewCategory {
+                    daily: true,
+                    ..Default::default()
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_new_daily_with_filename() {
+        let result = Cli::try_parse_from(["tk", "new", "--daily", "x"]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_new_daily_with_project() {
+        let result = Cli::try_parse_from(["tk", "new", "--daily", "--project"]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parses_daily() {
+        let cli = Cli::parse_from(["tk", "daily"]);
+
+        assert_eq!(cli.command, Commands::Daily);
+    }
+
+    #[test]
+    fn rejects_daily_with_filename() {
+        let result = Cli::try_parse_from(["tk", "daily", "x"]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn into_kind_defaults_to_inbox() {
+        assert_eq!(NewCategory::default().into_kind(), Kind::Inbox);
+    }
+
+    #[test]
+    fn into_kind_maps_every_flag() {
+        assert_eq!(
+            NewCategory {
+                project: true,
+                ..Default::default()
+            }
+            .into_kind(),
+            Kind::Project
+        );
+        assert_eq!(
+            NewCategory {
+                area: true,
+                ..Default::default()
+            }
+            .into_kind(),
+            Kind::Area
+        );
+        assert_eq!(
+            NewCategory {
+                resource: true,
+                ..Default::default()
+            }
+            .into_kind(),
+            Kind::Resource
+        );
+        assert_eq!(
+            NewCategory {
+                daily: true,
+                ..Default::default()
+            }
+            .into_kind(),
+            Kind::Daily
+        );
     }
 
     #[test]

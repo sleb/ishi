@@ -20,7 +20,7 @@ so it can be tested without a real shell, editor, or terminal.
  └───┬───┘  └────┬────┘  └────────┘
      │           │
      ▼           ▼
- ┌─────────────────────┐
+ ┌──────────────────────┐
  │      workspace       │  resolves PARA root + category paths
  └──────────┬───────────┘
             ▼
@@ -29,18 +29,73 @@ so it can be tested without a real shell, editor, or terminal.
        └─────────┘
 
  ┌──────────┐
- │ category │  shared Inbox/Project/Area/Resource/Archive vocabulary
- └──────────┘  (used by cli, workspace, items, review)
+ │ category │  two vocabularies, no I/O: Category (filing) + Kind (creation)
+ └──────────┘  (used by cli, workspace, items, review, config)
 ```
 
 ### `category`
 
-Shared vocabulary type, no I/O.
+Shared vocabulary types, no I/O. Two distinct enums, deliberately not one —
+see "Filing vocabulary vs. creation vocabulary" below for why.
 
-- `enum Category { Inbox, Project, Area, Resource, Archive }`
+- `enum Category { Inbox, Project, Area, Resource, Archive }` — **where an
+  item is filed.** Consumed by every command that manages items that
+  already exist: `workspace::category_dir`, `items::mv`'s destination,
+  `items::list`/`status`'s per-category iteration, and `Archive`'s
+  origin-folder tracking.
 - `Category::is_directory_style() -> bool` — true for `Project`/`Area` (scaffolded
   dir + `index.md`), false for `Inbox`/`Resource` (flat file). `Archive` defers to
   the origin category it's preserving.
+- `enum Kind { Inbox, Project, Area, Resource, Daily }` — **what `new`/`daily`
+  create.** Consumed only by the creation path: `cli::run_new`'s dispatch
+  and `Templates::for_kind`.
+- `Kind::category(&self) -> Category` — the `Category` a created item of
+  this `Kind` files into. `Kind::Inbox` and `Kind::Daily` both map to
+  `Category::Inbox` — a daily note has no filing location of its own, just
+  a different template and a different creation/reopen lifecycle than a
+  plain Inbox capture.
+
+#### Filing vocabulary vs. creation vocabulary
+
+`Category` and `Kind` look almost identical (four of five variants line up
+1:1: `Inbox`/`Project`/`Area`/`Resource`) but answer different questions,
+and conflating them is a recurring trap worth naming explicitly:
+
+- **`Category` = "where does this item live?"** — a filing-location fact
+  that's true of an item forever, independent of how it was created. It's
+  the vocabulary `mv`, `list`, `status`, and archive-origin tracking need,
+  because those commands only care about current location, never about
+  how the item came to be there.
+- **`Kind` = "what is being created?"** — a creation-flavor fact that only
+  matters at the moment `new`/`daily` runs (which template to render,
+  which control flow to follow — interactive capture vs. non-interactive
+  named file vs. daily's create-or-reopen). Once the file exists on disk,
+  its `Kind` is forgotten; only its `Category` (i.e., which folder it's
+  sitting in) persists.
+
+The mismatch at the edges is the signal that these needed to be two types
+instead of one:
+
+- A daily note needs its own template and lifecycle but **has no folder of
+  its own** — it always lands in `Category::Inbox`. That's why it's a
+  `Kind` (`Kind::Daily`) with no matching `Category` variant, rather than a
+  `Category::Daily` that would just be a second name for the Inbox folder
+  everywhere `Category` is matched (`mv`, `list`, `status`, `Archive` would
+  all have to special-case a category that behaves identically to `Inbox`).
+- `Category::Archive` needs a folder (and origin-subfolder tracking) but
+  **items never arrive there via `new`** — only via `mv`. That's why it has
+  no matching `Kind` variant, rather than `Templates`/`run_new` having to
+  special-case or panic on a creation flavor nothing ever creates (which is
+  exactly what the old, single-enum design did: `Templates::for_category`
+  had to `panic!` on `Archive`).
+
+**Rule of thumb for future additions:** a new artifact type that needs its
+own template or creation control-flow, but always resolves into an
+existing folder, is a new `Kind` variant (mapped onto whichever `Category`
+it files into). A new artifact type that needs its own folder is a new
+`Category` variant (plus a matching `Kind` variant only if `new` should be
+able to create it directly — some categories, like `Archive`, might not
+be).
 
 ### `config`
 
@@ -51,14 +106,14 @@ Parses `.tick.toml`. Pure data, one file read.
   discriminants and this array's order must stay in sync (enforced by
   `Workspace::category_dir` using the cast directly, rather than a
   hand-written match).
-- `struct Templates { note: String, project: String, area: String, resource: String, daily: String }`
-  — one field per category template, plus `daily` (not category-indexed,
-  since `Category` has no `Daily` variant — `tk daily`/`tk new --daily`
-  render it directly rather than going through `Templates::for_category`).
-- `Templates::for_category(&self, category: Category) -> &str` — maps
-  `Inbox`/`Project`/`Area`/`Resource` to `note`/`project`/`area`/`resource`
-  respectively; panics on `Archive`, since `items::create` is never called
-  with `Category::Archive` (items only arrive there via `items::mv`).
+- `struct Templates { note: String, daily: String, project: String, area: String, resource: String }`
+  — one field per `Kind` (see `category` above): `note` for `Kind::Inbox`,
+  `daily` for `Kind::Daily`, etc.
+- `Templates::for_kind(&self, kind: Kind) -> &str` — maps `Kind::Inbox` to
+  `note`, `Kind::Daily` to `daily`, `Kind::Project`/`Area`/`Resource` to
+  `project`/`area`/`resource`. Total — every `Kind` has a template, so
+  unlike the old `Category`-indexed lookup this needs no panic branch
+  (there's no `Kind::Archive` to be missing a template for).
 - `Config::default() -> Config` — `0-Inbox`, `1-Projects`, `2-Areas`,
   `3-Resources`, `4-Archive`, `md`, and the default `note` template.
 - `Config::load(path: &Path) -> Result<Config>` — reads `.tick.toml` if present,
@@ -103,15 +158,19 @@ Answers "where do things live?" for every other component.
 All filesystem operations. Takes a `Workspace` and `Category`, returns
 structured results — no printing, no prompting.
 
+- `item_path(ws: &Workspace, category: Category, name: &str) -> PathBuf` —
+  pure path computation, no I/O: the directory-vs-flat-file branch `create`
+  needs, factored out so callers can check whether an item already exists
+  (`cli::run_daily`, deciding create-vs-reopen) without duplicating that
+  branch or touching the filesystem themselves.
 - `create(ws: &Workspace, category: Category, name: &str, content: &str) -> Result<PathBuf>`
-  — creates a flat file or a scaffolded `dir/index.md`, appending the default
-  extension if the name has none, and writing `content` into it. Returns the
-  path created (the `index.md` path for directory-style categories).
-  `content` is caller-rendered: `cli::run_new`'s named-file path renders
-  `ws.config.templates.for_category(category)` with `{{title}}` set to `name`
-  before calling `create`, so every creation path (interactive editor capture
-  and non-interactive named creation alike) writes the category's template
-  rather than a raw string.
+  — computes the path via `item_path`, creates its parent directory, and
+  writes `content` into it. Returns the path created (the `index.md` path
+  for directory-style categories). `content` is caller-rendered:
+  `cli::run_new`'s named-file path renders `ws.config.templates.for_kind(kind)`
+  with `{{title}}` set to `name` before calling `create`, so every creation
+  path (interactive editor capture and non-interactive named creation
+  alike) writes the right template rather than a raw string.
 - `mv(ws: &Workspace, item: &Path, target: Category) -> Result<PathBuf>` —
   moves a file or project/area directory; wraps a flat file into a new
   directory when moving into `Project`/`Area`; when moving to `Archive`,
@@ -161,12 +220,17 @@ prompt logic. Splits into one impure entry point and a pure core so the
 filename-inference logic is directly unit-testable without spawning a real
 editor process or racing the system clock.
 
-- `Editor` trait: `capture(&self, seed: &str) -> Result<(String, String)>` —
-  implemented once as `RealEditor` (writes `seed` — the rendered template,
-  with `{{title}}` empty and `{{cursor}}` marking the starting line — to a
-  scratch file, opens `$EDITOR` on it via a `+<line>` argument when a cursor
-  line is present, reads it back) and once per test as a fake. Returns
-  `(content, suggested_filename)`.
+- `Editor` trait:
+  - `capture(&self, seed: &str) -> Result<(String, String)>` —
+    implemented once as `RealEditor` (writes `seed` — the rendered template,
+    with `{{title}}` empty and `{{cursor}}` marking the starting line — to a
+    scratch file, opens `$EDITOR` on it via a `+<line>` argument when a cursor
+    line is present, reads it back) and once per test as a fake. Returns
+    `(content, suggested_filename)`.
+  - `open(&self, path: &Path) -> Result<()>` — opens `$EDITOR` directly on
+    an existing file at `path`, no scratch file, no seed, no filename
+    inference. Used only by `cli::run_daily`'s reopen-existing-note path,
+    where the content is already final and there's nothing to infer.
 - `suggest_filename(content: &str) -> String` — pure. Skips a leading YAML
   frontmatter block if present, then looks for the first Markdown heading
   line (any `#` level) with non-blank text after the marker in the
@@ -199,25 +263,42 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
 - `Ui` trait (implemented once for a real terminal, once for tests):
   `confirm(prompt: &str, default: &str) -> Result<String>`,
   `choose(prompt: &str, options: &[&str]) -> Result<char>`.
-- `run_new(ws: &Workspace, editor: &dyn Editor, ui: &mut dyn Ui, category: Category, filename: Option<&str>) -> Result<PathBuf>`
-  — when `filename` is given, renders `ws.config.templates.for_category(category)`
+- `run_new(ws: &Workspace, editor: &dyn Editor, ui: &mut dyn Ui, kind: Kind, filename: Option<&str>) -> Result<PathBuf>`
+  — when `filename` is given, renders `ws.config.templates.for_kind(kind)`
   with `{{title}}` set to `filename` and `{{date}}` set to today, then calls
-  `items::create(ws, category, filename, &rendered)` directly, non-interactively;
-  `category` is what makes `--project`/`--area`/`--resource` scaffold into the
-  right place (and render the right template) instead of always `Inbox`/`note`.
-  When `filename` is `None`, seeds `$EDITOR` with `ws.config.templates.for_category(category)`
-  rendered with `{{title}}` empty (unknown yet) and `{{date}}` set to today,
-  then prompts for the inferred name and calls `items::create(ws, category, ...)`
-  — the same `category` used by the non-interactive branch, so
-  `--project`/`--area`/`--resource` scaffold into the right place (and seed
-  the right template) from an editor capture too, not just `Inbox`/`note`.
-  The confirm prompt's suggested default only appends
-  `ws.config.default_extension` when `!category.is_directory_style()` —
-  `Project`/`Area` suggest a bare directory name (`Create "website-redesign"?`),
-  while `Inbox`/`Resource` suggest a filename
-  (`Create "website-improvement-ideas.md"?`). `main` maps
-  `--project`/`--area`/`--resource` (mutually exclusive, via a `clap`
-  `ArgGroup`) to `Category`, defaulting to `Inbox` when none are given.
+  `items::create(ws, kind.category(), filename, &rendered)` directly,
+  non-interactively; `kind` is what makes `--project`/`--area`/`--resource`
+  scaffold into the right place (and render the right template) instead of
+  always `Inbox`/`note`. When `filename` is `None`, seeds `$EDITOR` with
+  `ws.config.templates.for_kind(kind)` rendered with `{{title}}` empty
+  (unknown yet) and `{{date}}` set to today, then prompts for the inferred
+  name and calls `items::create(ws, kind.category(), ...)` — the same `kind`
+  used by the non-interactive branch, so `--project`/`--area`/`--resource`
+  scaffold into the right place (and seed the right template) from an
+  editor capture too, not just `Inbox`/`note`. The confirm prompt's
+  suggested default only appends `ws.config.default_extension` when
+  `!kind.category().is_directory_style()` — `Project`/`Area` suggest a bare
+  directory name (`Create "website-redesign"?`), while `Inbox`/`Resource`
+  suggest a filename (`Create "website-improvement-ideas.md"?`). `main`
+  maps `--project`/`--area`/`--resource` (mutually exclusive, via a `clap`
+  `ArgGroup`) to `Kind`, defaulting to `Kind::Inbox` when none are given.
+  `run_new` is never called with `Kind::Daily` — `main` dispatches that to
+  `run_daily` instead (see below), since daily's create-or-reopen lifecycle
+  doesn't fit `run_new`'s capture-or-named-file shape.
+- `enum DailyOutcome { Created(PathBuf), Reopened(PathBuf) }` — lets `main`
+  decide whether to print a `Created ...` line.
+- `daily_note_exists(ws: &Workspace) -> bool` — true if today's daily note
+  already exists. Lets `main` print `Opening $EDITOR...` *before* handing
+  control to a blocking editor process, the same convention `run_new`'s
+  no-filename path uses, without `run_daily` itself needing a callback.
+- `run_daily(ws: &Workspace, editor: &dyn Editor) -> Result<DailyOutcome>`
+  — if today's note (`items::item_path(ws, Category::Inbox, today)`)
+  already exists, calls `editor.open` on it untouched and returns
+  `Reopened`; otherwise renders `ws.config.templates.for_kind(Kind::Daily)`
+  with `{{title}}`/`{{date}}` set to today, calls
+  `items::create(ws, Category::Inbox, today, &rendered)`, and returns
+  `Created`. No `Ui` parameter — there's no filename to confirm and no
+  choice to prompt, just a create/reopen fork.
 - `run_init(cwd: &Path, name: Option<&str>) -> Result<String>` — resolves
   the target (`cwd` or `cwd.join(name)`) and its display form (`.` or
   `./<name>`), calls `workspace::init` (which runs `check_collision`

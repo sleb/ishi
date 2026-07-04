@@ -6,7 +6,7 @@
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `init`        | Done                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `new`         | Partial — Inbox capture (story 001/002/007) works, including `note`-template pre-population and frontmatter/heading-aware filename inference; `--project`/`--area`/`--resource` now scaffold named notes (story 003–006); only the `note` template exists (no layering, no `{{time}}`/`{{uuid}}`, no per-category templates — story 008–012), and `--project`/`--area`/`--resource` with no filename (story 010) isn't wired yet |
-| `daily`       | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `daily`       | Done                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `mv`          | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `list`        | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `status`      | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -36,7 +36,7 @@ that are docs-only and deliberately _not_ drawn here).
      |               |          + templates
      v               |         /            \
  5. status           |        v              v
-     |               |    3. daily      8. config CLI
+     |               |    3. daily (done) 8. config CLI
      +-------+-------+
              |
              v
@@ -67,6 +67,24 @@ no filename is story 010, not yet wired).
 
 - Covers user-stories/new.md 003–006. (Story 002, the named-Inbox-note case,
   is already Completed; init.md 001–004 are Done.)
+
+### 3. `tk daily`
+
+Implemented as sugar for `tk new --daily`, per
+[docs/lld/004-tk-daily.md](lld/004-tk-daily.md). Along the way, `Category`
+(where an item is filed) and a new `category::Kind` (what `new`/`daily`
+create) were split into two types — a daily note has no folder of its own
+(`Kind::Daily` maps to `Category::Inbox`) and `Category::Archive` has no
+creation behavior at all, so one enum answering both questions no longer
+fit; see design.md's "Filing vocabulary vs. creation vocabulary" for the
+full rationale. `Templates::for_category` became the total `for_kind`, and
+`items::item_path` was factored out of `create` so `cli::daily_note_exists`
+can check for today's note without duplicating the directory-vs-flat-file
+branch. `cli::run_daily` creates non-interactively on the first run of the
+day and reopens the existing note untouched (via the new `Editor::open`)
+on any later run.
+
+- Covers user-stories/daily.md 001–003 and new.md story 013.
 
 ## Next
 
@@ -120,14 +138,6 @@ goes first in this group:
   `--project`/`--area`/`--resource` with no filename — needs item 1's flags
   plus this item's remaining templates), and 011, 012 (`{{time}}` and
   `{{uuid}}` placeholders).
-
-### 3. `tk daily`
-
-Straightforward once item 2 lands: resolve today's date, render the `daily`
-template, create-or-open in the Inbox. Implemented as sugar for `tk new
---daily` — the `--daily` flag needs wiring alongside `--project`/`--area`/
-`--resource` from item 1, plus the create-vs-open branch on whether today's
-note already exists. Covers user-stories/daily.md and new.md story 013.
 
 ### 4. `tk list`
 

@@ -13,6 +13,21 @@ pub enum ItemsError {
     Io(#[from] io::Error),
 }
 
+/// Computes the path `create` would write to, without touching the
+/// filesystem — the directory-vs-flat-file branch, factored out so
+/// callers can check existence (`cli::run_daily`) before deciding whether
+/// to create or reopen.
+pub fn item_path(ws: &Workspace, category: Category, name: &str) -> PathBuf {
+    let category_dir = ws.category_dir(category);
+    if category.is_directory_style() {
+        category_dir
+            .join(name)
+            .join(format!("index.{}", ws.config.default_extension))
+    } else {
+        category_dir.join(with_extension(name, &ws.config.default_extension))
+    }
+}
+
 /// Creates a flat file or a scaffolded `dir/index.md`, appending the
 /// default extension to `name` if it has none, and writing `content`
 /// into it. Returns the path created (the `index.md` path for
@@ -23,17 +38,10 @@ pub fn create(
     name: &str,
     content: &str,
 ) -> Result<PathBuf, ItemsError> {
-    let category_dir = ws.category_dir(category);
-
-    let path = if category.is_directory_style() {
-        let dir = category_dir.join(name);
-        fs::create_dir_all(&dir)?;
-        dir.join(format!("index.{}", ws.config.default_extension))
-    } else {
-        fs::create_dir_all(&category_dir)?;
-        category_dir.join(with_extension(name, &ws.config.default_extension))
-    };
-
+    let path = item_path(ws, category, name);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     fs::write(&path, content)?;
     Ok(path)
 }
@@ -78,6 +86,26 @@ mod tests {
         let path = create(&ws, Category::Inbox, "my-note.md", "hello").unwrap();
 
         assert_eq!(path, dir.path().join("0-Inbox/my-note.md"));
+    }
+
+    #[test]
+    fn item_path_for_flat_category() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let path = item_path(&ws, Category::Inbox, "2026-07-04");
+
+        assert_eq!(path, dir.path().join("0-Inbox/2026-07-04.md"));
+    }
+
+    #[test]
+    fn item_path_for_directory_style_category() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let path = item_path(&ws, Category::Project, "foo");
+
+        assert_eq!(path, dir.path().join("1-Projects/foo/index.md"));
     }
 
     #[test]

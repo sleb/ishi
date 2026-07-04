@@ -1,63 +1,8 @@
 # User Stories: `tk new`
 
-## User Story 011 ✅
-
-- **Summary:** Templates can stamp the current time, not just the date
-- **Depends on:** Story 007, Story 008 (template rendering, both non-interactive and editor pre-population)
-
-### Use Case
-
-- **As a** Tick user with a custom template
-- **I want to** include `{{time}}` in a template
-- **so that** notes capture the moment they were created down to the minute, not just the day
-
-### Acceptance Criteria
-
-- **Scenario:** `{{time}}` renders in a named, non-interactive note
-- **Given:** I am inside an initialized PARA system with a custom `note` template containing `{{time}}`
-- **When:** I run `tk new my-file`
-- **Then:** `0-Inbox/my-file.md` is created with `{{time}}` rendered as the current time (e.g. `14:32`)
-
-- **Scenario:** `{{time}}` renders when pre-populating `$EDITOR`
-- **Given:** I am inside an initialized PARA system with a custom `note` template containing `{{time}}`
-- **and Given:** my `$EDITOR` environment variable is set
-- **When:** I run `tk new` with no arguments
-- **Then:** the editor opens pre-populated with `{{time}}` already rendered as the current time, the same as `{{date}}`
-
 ---
 
-## User Story 012 ✅
-
-- **Summary:** Templates can generate a unique id for Zettelkasten-style notes
-- **Depends on:** Story 007, Story 008 (template rendering, both non-interactive and editor pre-population)
-
-### Use Case
-
-- **As a** Tick user practicing Zettelkasten-style note-taking
-- **I want to** include `{{uuid}}` in a template
-- **so that** every note gets a permanent, unique identifier without me generating one by hand
-
-### Acceptance Criteria
-
-- **Scenario:** `{{uuid}}` renders in a named, non-interactive note
-- **Given:** I am inside an initialized PARA system with a custom `note` template containing `{{uuid}}`
-- **When:** I run `tk new my-file`
-- **Then:** `0-Inbox/my-file.md` is created with `{{uuid}}` rendered as a freshly generated unique id
-
-- **Scenario:** `{{uuid}}` renders when pre-populating `$EDITOR`
-- **Given:** I am inside an initialized PARA system with a custom `note` template containing `{{uuid}}`
-- **and Given:** my `$EDITOR` environment variable is set
-- **When:** I run `tk new` with no arguments
-- **Then:** the editor opens pre-populated with `{{uuid}}` already rendered as a freshly generated unique id
-
-- **Scenario:** Each note gets its own id
-- **Given:** I am inside an initialized PARA system with a custom `note` template containing `{{uuid}}`
-- **When:** I run `tk new first-note` followed by `tk new second-note`
-- **Then:** the two created files contain different rendered `{{uuid}}` values
-
----
-
-## User Story 013
+## User Story 013 ✅
 
 - **Summary:** `--daily` scaffolds (or reopens) today's note without leaving `new`
 - **Depends on:** [daily.md](daily.md) Story 001, Story 002 (behavior this flag delegates to), Story 003, Story 004, Story 005 (mutual exclusivity with the other category flags)
@@ -383,3 +328,58 @@
 - **Then:** Tick prompts with a name generated from the current timestamp instead of a note title
 
 ---
+
+## User Story 011 ✅
+
+- **Summary:** Templates can stamp the current time, not just the date
+- **Depends on:** Story 007, Story 008 (template rendering, both non-interactive and editor pre-population)
+
+### Use Case
+
+- **As a** Tick user with a custom template
+- **I want to** include `{{time}}` in a template
+- **so that** notes capture the moment they were created down to the minute, not just the day
+
+### Acceptance Criteria
+
+- **Scenario:** `{{time}}` renders in a named, non-interactive note
+- **Given:** I am inside an initialized PARA system with a custom `note` template containing `{{time}}`
+- **When:** I run `tk new my-file`
+- **Then:** `0-Inbox/my-file.md` is created with `{{time}}` rendered as the current time (e.g. `14:32`)
+
+- **Scenario:** `{{time}}` renders when pre-populating `$EDITOR`
+- **Given:** I am inside an initialized PARA system with a custom `note` template containing `{{time}}`
+- **and Given:** my `$EDITOR` environment variable is set
+- **When:** I run `tk new` with no arguments
+- **Then:** the editor opens pre-populated with `{{time}}` already rendered as the current time, the same as `{{date}}`
+
+---
+
+## User Story 012 ✅
+
+- **Summary:** Templates can generate a unique id for Zettelkasten-style notes
+- **Depends on:** Story 007, Story 008 (template rendering, both non-interactive and editor pre-population)
+
+### Use Case
+
+- **As a** Tick user practicing Zettelkasten-style note-taking
+- **I want to** include `{{uuid}}` in a template
+- **so that** every note gets a permanent, unique identifier without me generating one by hand
+
+### Acceptance Criteria
+
+- **Scenario:** `{{uuid}}` renders in a named, non-interactive note
+- **Given:** I am inside an initialized PARA system with a custom `note` template containing `{{uuid}}`
+- **When:** I run `tk new my-file`
+- **Then:** `0-Inbox/my-file.md` is created with `{{uuid}}` rendered as a freshly generated unique id
+
+- **Scenario:** `{{uuid}}` renders when pre-populating `$EDITOR`
+- **Given:** I am inside an initialized PARA system with a custom `note` template containing `{{uuid}}`
+- **and Given:** my `$EDITOR` environment variable is set
+- **When:** I run `tk new` with no arguments
+- **Then:** the editor opens pre-populated with `{{uuid}}` already rendered as a freshly generated unique id
+
+- **Scenario:** Each note gets its own id
+- **Given:** I am inside an initialized PARA system with a custom `note` template containing `{{uuid}}`
+- **When:** I run `tk new first-note` followed by `tk new second-note`
+- **Then:** the two created files contain different rendered `{{uuid}}` values

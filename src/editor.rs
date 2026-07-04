@@ -1,5 +1,6 @@
 use std::env;
 use std::io;
+use std::path::Path;
 use std::process::Command;
 use std::time::SystemTime;
 
@@ -22,6 +23,11 @@ pub trait Editor {
     /// empty and `{{cursor}}` marking the starting line) and returns
     /// `(content, suggested_filename_no_ext)`.
     fn capture(&self, seed: &str) -> Result<(String, String), EditorError>;
+
+    /// Opens `$EDITOR` directly on an existing file at `path` — no scratch
+    /// file, no seed content, no filename inference. Used to reopen an
+    /// already-created daily note untouched.
+    fn open(&self, path: &Path) -> Result<(), EditorError>;
 }
 
 pub struct RealEditor;
@@ -51,6 +57,18 @@ impl Editor for RealEditor {
         let content = std::fs::read_to_string(&path)?;
         let suggested = suggest_filename(&content);
         Ok((content, suggested))
+    }
+
+    fn open(&self, path: &Path) -> Result<(), EditorError> {
+        let editor = env::var("EDITOR").map_err(|_| EditorError::NotSet)?;
+        if editor.trim().is_empty() {
+            return Err(EditorError::NotSet);
+        }
+        let status = Command::new(&editor).arg(path).status()?;
+        if !status.success() {
+            return Err(EditorError::Aborted);
+        }
+        Ok(())
     }
 }
 

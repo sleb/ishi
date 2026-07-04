@@ -32,6 +32,7 @@ impl Default for Config {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Templates {
     pub note: String,
+    pub daily: String,
     pub project: String,
     pub area: String,
     pub resource: String,
@@ -41,6 +42,7 @@ impl Default for Templates {
     fn default() -> Self {
         Self {
             note: "---\nlast_updated: {{date}}\n---\n# {{cursor}}{{title}}\n".to_string(),
+            daily: "---\ndate: {{date}}\nlast_updated: {{date}}\n---\n# {{date}}\n\n## Tasks\n\n[ ] -\n\n## Notes\n\n{{cursor}}\n".to_string(),
             project:
                 "---\nlast_updated: {{date}}\n---\n\n# {{cursor}}{{title}}\n\nStatus: active\n"
                     .to_string(),
@@ -52,18 +54,16 @@ impl Default for Templates {
 }
 
 impl Templates {
-    /// Maps a category to the template used when creating one of its
-    /// items. Panics on `Category::Archive` — `items::create` (the only
-    /// caller that renders a template) is never called with that variant,
-    /// since items only arrive in `Archive` via `items::mv`.
-    pub fn for_category(&self, category: crate::category::Category) -> &str {
-        use crate::category::Category;
-        match category {
-            Category::Inbox => &self.note,
-            Category::Project => &self.project,
-            Category::Area => &self.area,
-            Category::Resource => &self.resource,
-            Category::Archive => panic!("Archive has no template; items arrive there via mv"),
+    /// Maps a `Kind` to the template used when creating that kind of item.
+    /// Total — there's no `Kind::Archive` to be missing a template for.
+    pub fn for_kind(&self, kind: crate::category::Kind) -> &str {
+        use crate::category::Kind;
+        match kind {
+            Kind::Inbox => &self.note,
+            Kind::Daily => &self.daily,
+            Kind::Project => &self.project,
+            Kind::Area => &self.area,
+            Kind::Resource => &self.resource,
         }
     }
 }
@@ -244,26 +244,24 @@ mod tests {
     }
 
     #[test]
-    fn for_category_maps_to_matching_template() {
-        use crate::category::Category;
+    fn for_kind_maps_to_matching_template() {
+        use crate::category::Kind;
 
         let templates = Templates::default();
 
-        assert_eq!(templates.for_category(Category::Inbox), templates.note);
-        assert_eq!(templates.for_category(Category::Project), templates.project);
-        assert_eq!(templates.for_category(Category::Area), templates.area);
-        assert_eq!(
-            templates.for_category(Category::Resource),
-            templates.resource
-        );
+        assert_eq!(templates.for_kind(Kind::Inbox), templates.note);
+        assert_eq!(templates.for_kind(Kind::Daily), templates.daily);
+        assert_eq!(templates.for_kind(Kind::Project), templates.project);
+        assert_eq!(templates.for_kind(Kind::Area), templates.area);
+        assert_eq!(templates.for_kind(Kind::Resource), templates.resource);
     }
 
     #[test]
-    #[should_panic]
-    fn for_category_panics_on_archive() {
-        use crate::category::Category;
+    fn daily_template_default_matches_readme() {
+        let templates = Templates::default();
 
-        Templates::default().for_category(Category::Archive);
+        assert!(templates.daily.contains("## Tasks"));
+        assert!(templates.daily.contains("## Notes"));
     }
 
     #[test]

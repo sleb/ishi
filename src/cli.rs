@@ -5,7 +5,7 @@ use chrono::Local;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::category::Category;
+use crate::category::{Category, Kind};
 use crate::config;
 use crate::editor::Editor;
 use crate::items;
@@ -62,23 +62,19 @@ pub fn run_new(
     ws: &Workspace,
     editor: &dyn Editor,
     ui: &mut dyn Ui,
-    category: Category,
+    kind: Kind,
     filename: Option<String>,
 ) -> anyhow::Result<PathBuf> {
+    let category = kind.category();
+    let template = ws.config.templates.for_kind(kind);
     let path = match filename {
         Some(name) => {
             let now = Local::now();
             let today = now.date_naive().format("%Y-%m-%d").to_string();
             let time = now.format("%H:%M").to_string();
             let uuid = Uuid::new_v4().to_string();
-            let rendered = config::render(
-                ws.config.templates.for_category(category),
-                &name,
-                &today,
-                &time,
-                &uuid,
-            )
-            .replace("{{cursor}}", "");
+            let rendered =
+                config::render(template, &name, &today, &time, &uuid).replace("{{cursor}}", "");
             items::create(ws, category, &name, &rendered)?
         }
         None => {
@@ -86,13 +82,7 @@ pub fn run_new(
             let today = now.date_naive().format("%Y-%m-%d").to_string();
             let time = now.format("%H:%M").to_string();
             let uuid = Uuid::new_v4().to_string();
-            let seed = config::render(
-                ws.config.templates.for_category(category),
-                "",
-                &today,
-                &time,
-                &uuid,
-            );
+            let seed = config::render(template, "", &today, &time, &uuid);
             let (content, suggested) = editor.capture(&seed)?;
             let default = if category.is_directory_style() {
                 suggested
@@ -104,6 +94,44 @@ pub fn run_new(
         }
     };
     Ok(path)
+}
+
+#[derive(Debug)]
+pub enum DailyOutcome {
+    Created(PathBuf),
+    Reopened(PathBuf),
+}
+
+/// True if today's daily note already exists — lets `main` print
+/// `Opening $EDITOR...` *before* handing control to a blocking editor
+/// process, the same convention the no-filename `run_new` path uses.
+pub fn daily_note_exists(ws: &Workspace) -> bool {
+    let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+    items::item_path(ws, Category::Inbox, &today).exists()
+}
+
+pub fn run_daily(ws: &Workspace, editor: &dyn Editor) -> anyhow::Result<DailyOutcome> {
+    let now = Local::now();
+    let today = now.date_naive().format("%Y-%m-%d").to_string();
+    let path = items::item_path(ws, Category::Inbox, &today);
+
+    if path.exists() {
+        editor.open(&path)?;
+        Ok(DailyOutcome::Reopened(path))
+    } else {
+        let time = now.format("%H:%M").to_string();
+        let uuid = Uuid::new_v4().to_string();
+        let rendered = config::render(
+            ws.config.templates.for_kind(Kind::Daily),
+            &today,
+            &today,
+            &time,
+            &uuid,
+        )
+        .replace("{{cursor}}", "");
+        let created = items::create(ws, Category::Inbox, &today, &rendered)?;
+        Ok(DailyOutcome::Created(created))
+    }
 }
 
 pub fn run_init(cwd: &Path, name: Option<&str>) -> anyhow::Result<String> {
@@ -137,6 +165,10 @@ mod tests {
     impl Editor for FakeEditor {
         fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
             Ok((self.content.clone(), self.suggested.clone()))
+        }
+
+        fn open(&self, _path: &Path) -> Result<(), EditorError> {
+            unimplemented!("not exercised by this test")
         }
     }
 
@@ -190,6 +222,10 @@ mod tests {
         fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
             panic!("editor should not be invoked when a filename is given")
         }
+
+        fn open(&self, _path: &Path) -> Result<(), EditorError> {
+            unimplemented!("not exercised by this test")
+        }
     }
 
     #[test]
@@ -204,7 +240,7 @@ mod tests {
             confirm_response: "website-improvement-ideas.md".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
 
         assert_eq!(
             path,
@@ -228,7 +264,7 @@ mod tests {
             confirm_response: "my-custom-name".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
 
         assert_eq!(path, dir.path().join("0-Inbox/my-custom-name.md"));
     }
@@ -245,7 +281,7 @@ mod tests {
             confirm_response: "20260630-153045.md".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
 
         assert_eq!(path, dir.path().join("0-Inbox/20260630-153045.md"));
         assert_eq!(fs::read_to_string(&path).unwrap(), "");
@@ -264,6 +300,10 @@ mod tests {
                 *self.seen_seed.borrow_mut() = seed.to_string();
                 Ok(("# Title\n".to_string(), "title".to_string()))
             }
+
+            fn open(&self, _path: &Path) -> Result<(), EditorError> {
+                unimplemented!("not exercised by this test")
+            }
         }
 
         let dir = tempdir().unwrap();
@@ -275,7 +315,7 @@ mod tests {
             confirm_response: "title.md".to_string(),
         };
 
-        run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
+        run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
 
         let seed = editor.seen_seed.borrow();
         assert!(seed.contains("{{cursor}}"));
@@ -295,7 +335,7 @@ mod tests {
             confirm_response: "website-redesign".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Category::Project, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Project, None).unwrap();
 
         assert_eq!(
             path,
@@ -319,7 +359,7 @@ mod tests {
             confirm_response: "health".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Category::Area, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Area, None).unwrap();
 
         assert_eq!(path, dir.path().join("2-Areas/health/index.md"));
         assert_eq!(fs::read_to_string(&path).unwrap(), "# Health\nbody");
@@ -337,7 +377,7 @@ mod tests {
             confirm_response: "recipe-ideas.md".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Category::Resource, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Resource, None).unwrap();
 
         assert_eq!(path, dir.path().join("3-Resources/recipe-ideas.md"));
         assert_eq!(fs::read_to_string(&path).unwrap(), "# Recipe Ideas\nbody");
@@ -372,7 +412,7 @@ mod tests {
             seen_default: RefCell::new(String::new()),
         };
 
-        run_new(&ws, &editor, &mut ui, Category::Project, None).unwrap();
+        run_new(&ws, &editor, &mut ui, Kind::Project, None).unwrap();
 
         assert_eq!(*ui.seen_default.borrow(), "website-redesign");
     }
@@ -390,6 +430,10 @@ mod tests {
                 *self.seen_seed.borrow_mut() = seed.to_string();
                 Ok(("# Title\n".to_string(), "title".to_string()))
             }
+
+            fn open(&self, _path: &Path) -> Result<(), EditorError> {
+                unimplemented!("not exercised by this test")
+            }
         }
 
         let dir = tempdir().unwrap();
@@ -401,7 +445,7 @@ mod tests {
             confirm_response: "title".to_string(),
         };
 
-        run_new(&ws, &editor, &mut ui, Category::Project, None).unwrap();
+        run_new(&ws, &editor, &mut ui, Kind::Project, None).unwrap();
 
         let seed = editor.seen_seed.borrow();
         assert!(seed.contains("Status: active"));
@@ -420,7 +464,7 @@ mod tests {
             &ws,
             &editor,
             &mut ui,
-            Category::Inbox,
+            Kind::Inbox,
             Some("my-file".to_string()),
         )
         .unwrap();
@@ -443,7 +487,7 @@ mod tests {
             &ws,
             &editor,
             &mut ui,
-            Category::Project,
+            Kind::Project,
             Some("website-redesign".to_string()),
         )
         .unwrap();
@@ -471,7 +515,7 @@ mod tests {
             &ws,
             &editor,
             &mut ui,
-            Category::Area,
+            Kind::Area,
             Some("health".to_string()),
         )
         .unwrap();
@@ -496,7 +540,7 @@ mod tests {
             &ws,
             &editor,
             &mut ui,
-            Category::Resource,
+            Kind::Resource,
             Some("recipe-ideas".to_string()),
         )
         .unwrap();
@@ -519,7 +563,7 @@ mod tests {
             &ws,
             &editor,
             &mut ui,
-            Category::Inbox,
+            Kind::Inbox,
             Some("my-file".to_string()),
         )
         .unwrap();
@@ -542,7 +586,7 @@ mod tests {
             &ws,
             &editor,
             &mut ui,
-            Category::Inbox,
+            Kind::Inbox,
             Some("my-file".to_string()),
         )
         .unwrap();
@@ -564,6 +608,10 @@ mod tests {
                 *self.seen_seed.borrow_mut() = seed.to_string();
                 Ok(("# Title\n".to_string(), "title".to_string()))
             }
+
+            fn open(&self, _path: &Path) -> Result<(), EditorError> {
+                unimplemented!("not exercised by this test")
+            }
         }
 
         let dir = tempdir().unwrap();
@@ -575,7 +623,7 @@ mod tests {
             confirm_response: "title".to_string(),
         };
 
-        run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
+        run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
 
         let seed = editor.seen_seed.borrow();
         assert!(!seed.contains("{{time}}"));
@@ -595,7 +643,7 @@ mod tests {
             &ws,
             &editor,
             &mut ui,
-            Category::Inbox,
+            Kind::Inbox,
             Some("my-file".to_string()),
         )
         .unwrap();
@@ -617,6 +665,10 @@ mod tests {
                 *self.seen_seed.borrow_mut() = seed.to_string();
                 Ok(("# Title\n".to_string(), "title".to_string()))
             }
+
+            fn open(&self, _path: &Path) -> Result<(), EditorError> {
+                unimplemented!("not exercised by this test")
+            }
         }
 
         let dir = tempdir().unwrap();
@@ -628,7 +680,7 @@ mod tests {
             confirm_response: "title".to_string(),
         };
 
-        run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
+        run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
 
         let seed = editor.seen_seed.borrow();
         assert!(!seed.contains("{{uuid}}"));
@@ -648,7 +700,7 @@ mod tests {
             &ws,
             &editor,
             &mut ui,
-            Category::Inbox,
+            Kind::Inbox,
             Some("first-note".to_string()),
         )
         .unwrap();
@@ -656,7 +708,7 @@ mod tests {
             &ws,
             &editor,
             &mut ui,
-            Category::Inbox,
+            Kind::Inbox,
             Some("second-note".to_string()),
         )
         .unwrap();
@@ -738,5 +790,130 @@ mod tests {
 
         assert!(err.to_string().contains("existing-file"));
         assert!(err.to_string().contains("already exists"));
+    }
+
+    struct PanicOnOpenEditor;
+
+    impl Editor for PanicOnOpenEditor {
+        fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
+            unimplemented!("not exercised by this test")
+        }
+
+        fn open(&self, _path: &Path) -> Result<(), EditorError> {
+            panic!("open should not be invoked when there's no existing daily note")
+        }
+    }
+
+    struct RecordingOpenEditor {
+        opened_path: std::cell::RefCell<Option<std::path::PathBuf>>,
+    }
+
+    impl Editor for RecordingOpenEditor {
+        fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
+            unimplemented!("not exercised by this test")
+        }
+
+        fn open(&self, path: &Path) -> Result<(), EditorError> {
+            *self.opened_path.borrow_mut() = Some(path.to_path_buf());
+            Ok(())
+        }
+    }
+
+    struct NotSetEditor;
+
+    impl Editor for NotSetEditor {
+        fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
+            unimplemented!("not exercised by this test")
+        }
+
+        fn open(&self, _path: &Path) -> Result<(), EditorError> {
+            Err(EditorError::NotSet)
+        }
+    }
+
+    #[test]
+    fn run_daily_first_run_creates_non_interactively() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let editor = PanicOnOpenEditor;
+
+        let outcome = run_daily(&ws, &editor).unwrap();
+
+        let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+        match outcome {
+            DailyOutcome::Created(path) => {
+                assert_eq!(path, dir.path().join(format!("0-Inbox/{today}.md")));
+                let content = fs::read_to_string(&path).unwrap();
+                assert!(content.contains(&today));
+                assert!(!content.contains("{{cursor}}"));
+            }
+            DailyOutcome::Reopened(_) => panic!("expected Created on first run"),
+        }
+    }
+
+    #[test]
+    fn run_daily_second_run_reopens_without_re_rendering() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+        let existing_path = items::create(&ws, Category::Inbox, &today, "custom content").unwrap();
+
+        let editor = RecordingOpenEditor {
+            opened_path: std::cell::RefCell::new(None),
+        };
+        let outcome = run_daily(&ws, &editor).unwrap();
+
+        match outcome {
+            DailyOutcome::Reopened(path) => assert_eq!(path, existing_path),
+            DailyOutcome::Created(_) => panic!("expected Reopened on second run"),
+        }
+        assert_eq!(*editor.opened_path.borrow(), Some(existing_path.clone()));
+        assert_eq!(
+            fs::read_to_string(&existing_path).unwrap(),
+            "custom content"
+        );
+    }
+
+    #[test]
+    fn run_daily_editor_not_set_on_reopen_surfaces_error() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+        items::create(&ws, Category::Inbox, &today, "custom content").unwrap();
+
+        let editor = NotSetEditor;
+        let err = run_daily(&ws, &editor).unwrap_err();
+
+        assert!(err.to_string().contains("$EDITOR"));
+    }
+
+    #[test]
+    fn run_daily_filename_is_todays_date() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let editor = PanicOnOpenEditor;
+
+        let outcome = run_daily(&ws, &editor).unwrap();
+
+        let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+        match outcome {
+            DailyOutcome::Created(path) => {
+                assert_eq!(path.file_stem().unwrap().to_str().unwrap(), today);
+            }
+            DailyOutcome::Reopened(_) => panic!("expected Created on first run"),
+        }
+    }
+
+    #[test]
+    fn daily_note_exists_reflects_filesystem() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        assert!(!daily_note_exists(&ws));
+
+        let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+        items::create(&ws, Category::Inbox, &today, "content").unwrap();
+
+        assert!(daily_note_exists(&ws));
     }
 }
