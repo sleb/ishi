@@ -61,10 +61,11 @@ pub fn run_new(
     ws: &Workspace,
     editor: &dyn Editor,
     ui: &mut dyn Ui,
+    category: Category,
     filename: Option<String>,
 ) -> anyhow::Result<PathBuf> {
     let path = match filename {
-        Some(name) => items::create(ws, Category::Inbox, &name, "")?,
+        Some(name) => items::create(ws, category, &name, "")?,
         None => {
             let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
             let seed = config::render(&ws.config.templates.note, "", &today);
@@ -132,6 +133,14 @@ mod tests {
         }
     }
 
+    struct PanicEditor;
+
+    impl Editor for PanicEditor {
+        fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
+            panic!("editor should not be invoked when a filename is given")
+        }
+    }
+
     #[test]
     fn accepts_inferred_filename() {
         let dir = tempdir().unwrap();
@@ -144,7 +153,7 @@ mod tests {
             confirm_response: "website-improvement-ideas.md".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
 
         assert_eq!(
             path,
@@ -168,7 +177,7 @@ mod tests {
             confirm_response: "my-custom-name".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
 
         assert_eq!(path, dir.path().join("0-Inbox/my-custom-name.md"));
     }
@@ -185,7 +194,7 @@ mod tests {
             confirm_response: "20260630-153045.md".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
 
         assert_eq!(path, dir.path().join("0-Inbox/20260630-153045.md"));
         assert_eq!(fs::read_to_string(&path).unwrap(), "");
@@ -215,7 +224,7 @@ mod tests {
             confirm_response: "title.md".to_string(),
         };
 
-        run_new(&ws, &editor, &mut ui, None).unwrap();
+        run_new(&ws, &editor, &mut ui, Category::Inbox, None).unwrap();
 
         let seed = editor.seen_seed.borrow();
         assert!(seed.contains("{{cursor}}"));
@@ -227,20 +236,87 @@ mod tests {
     fn named_filename_skips_editor() {
         let dir = tempdir().unwrap();
         let ws = workspace(dir.path());
-        struct PanicEditor;
-        impl Editor for PanicEditor {
-            fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
-                panic!("editor should not be invoked when a filename is given")
-            }
-        }
         let editor = PanicEditor;
         let mut ui = FakeUi {
             confirm_response: String::new(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Some("my-file".to_string())).unwrap();
+        let path = run_new(
+            &ws,
+            &editor,
+            &mut ui,
+            Category::Inbox,
+            Some("my-file".to_string()),
+        )
+        .unwrap();
 
         assert_eq!(path, dir.path().join("0-Inbox/my-file.md"));
+    }
+
+    #[test]
+    fn creates_named_project_directory() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let editor = PanicEditor;
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
+
+        let path = run_new(
+            &ws,
+            &editor,
+            &mut ui,
+            Category::Project,
+            Some("website-redesign".to_string()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            path,
+            dir.path().join("1-Projects/website-redesign/index.md")
+        );
+    }
+
+    #[test]
+    fn creates_named_area_directory() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let editor = PanicEditor;
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
+
+        let path = run_new(
+            &ws,
+            &editor,
+            &mut ui,
+            Category::Area,
+            Some("health".to_string()),
+        )
+        .unwrap();
+
+        assert_eq!(path, dir.path().join("2-Areas/health/index.md"));
+    }
+
+    #[test]
+    fn creates_named_resource_file() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let editor = PanicEditor;
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
+
+        let path = run_new(
+            &ws,
+            &editor,
+            &mut ui,
+            Category::Resource,
+            Some("recipe-ideas".to_string()),
+        )
+        .unwrap();
+
+        assert_eq!(path, dir.path().join("3-Resources/recipe-ideas.md"));
     }
 
     #[test]

@@ -79,6 +79,7 @@
 ## User Story 003
 
 - **Summary:** Scaffold a new project as soon as it starts
+- **Status:** Completed
 - **Depends on:** [init.md](init.md) Story 001, Story 002 (named-note creation)
 
 ### Use Case
@@ -99,6 +100,7 @@
 ## User Story 004
 
 - **Summary:** Scaffold a new area to track an ongoing responsibility
+- **Status:** Completed
 - **Depends on:** [init.md](init.md) Story 001, Story 002 (named-note creation)
 
 ### Use Case
@@ -119,6 +121,7 @@
 ## User Story 005
 
 - **Summary:** File a reference note without the overhead of a directory
+- **Status:** Completed
 - **Depends on:** [init.md](init.md) Story 001, Story 002 (named-note creation)
 
 ### Use Case

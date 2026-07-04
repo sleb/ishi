@@ -5,7 +5,7 @@
 | Command       | State                                                                                                                                                                                                                                                                                          |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `init`        | Done                                                                                                                                                                                                                                                                                           |
-| `new`         | Partial — Inbox capture (story 001/002/007) works, including `note`-template pre-population and frontmatter/heading-aware filename inference; `--project`/`--area`/`--resource` flags aren't wired to the CLI yet, and only the `note` template exists (no layering, no `{{time}}`/`{{uuid}}`) |
+| `new`         | Partial — Inbox capture (story 001/002/007) works, including `note`-template pre-population and frontmatter/heading-aware filename inference; `--project`/`--area`/`--resource` now scaffold named notes (story 003–006); only the `note` template exists (no layering, no `{{time}}`/`{{uuid}}`, no per-category templates — story 008–012), and `--project`/`--area`/`--resource` with no filename (story 010) isn't wired yet |
 | `daily`       | Not started                                                                                                                                                                                                                                                                                    |
 | `mv`          | Not started                                                                                                                                                                                                                                                                                    |
 | `list`        | Not started                                                                                                                                                                                                                                                                                    |
@@ -22,26 +22,25 @@ naming convention; see the footnote after the diagram for two cross-references
 that are docs-only and deliberately _not_ drawn here).
 
 ```
-                                   init (done)
-                                       |
-                 +----------------------+----------------------+
-                 |                                              |
-                 v                                              v
-          1. new: wire                                   9. completions
-        --project/area/resource                          (no other deps)
-                 |
-     +-----------+------------+------------+
-     |           |            |
-     v           v            v
- 4. list     6. mv      2. config layering
-     |           |          + templates
-     v           |         /            \
- 5. status       |        v              v
-     |           |    3. daily      8. config CLI
-     +-----+-----+
-           |
-           v
-      7. review
+                          init (done)
+                              |
+        +-----------------------+-----------------------+
+        |                                                |
+        v                                                v
+ 1. new: wire flags (done)                        9. completions
+        |                                         (no other deps)
+     +--+------------+------------+
+     |               |            |
+     v               v            v
+ 4. list         6. mv      2. config layering
+     |               |          + templates
+     v               |         /            \
+ 5. status           |        v              v
+     |               |    3. daily      8. config CLI
+     +-------+-------+
+             |
+             v
+        7. review
 ```
 
 - `list` → `review` (list.md 001 cites review.md 001's "raw days ago"
@@ -53,14 +52,18 @@ that are docs-only and deliberately _not_ drawn here).
   those commands landing — completions can be built against however much of
   the CLI exists at the time.
 
-## Now
+## Done
 
-### 1. Finish `new`: wire `--project` / `--area` / `--resource`
+### 1. `new`: wire `--project` / `--area` / `--resource`
 
-`items::create` already takes a `Category` and scaffolds directories vs. flat
-files correctly (see `src/items.rs` tests) — the only gap is `main.rs`'s
-`Commands::New` doesn't expose the flags yet. Smallest remaining piece of an
-already-started command.
+`items::create` already took a `Category` and scaffolded directories vs. flat
+files correctly (see `src/items.rs` tests) — the only gap was `main.rs`'s
+`Commands::New` not exposing the flags. Done: a `clap` `ArgGroup`
+(`NewCategory`, `multiple = false`) adds `--project`/`--area`/`--resource` as
+mutually-exclusive flags, `cli::run_new` takes a `Category` parameter (used
+for the non-interactive named-file path; the no-filename editor-capture path
+still always creates in `Inbox` — capturing into a project/area/resource with
+no filename is story 010, not yet wired).
 
 - Covers user-stories/new.md 003–006. (Story 002, the named-Inbox-note case,
   is already Completed; init.md 001–004 are Done.)

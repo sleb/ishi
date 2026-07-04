@@ -174,6 +174,17 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
 - `Ui` trait (implemented once for a real terminal, once for tests):
   `confirm(prompt: &str, default: &str) -> Result<String>`,
   `choose(prompt: &str, options: &[&str]) -> Result<char>`.
+- `run_new(ws: &Workspace, editor: &dyn Editor, ui: &mut dyn Ui, category: Category, filename: Option<&str>) -> Result<PathBuf>`
+  — when `filename` is given, calls `items::create(ws, category, filename, "")`
+  directly, non-interactively; `category` is what makes `--project`/`--area`/
+  `--resource` scaffold into the right place instead of always `Inbox`. When
+  `filename` is `None`, seeds `$EDITOR` with the rendered `note` template and
+  prompts for the inferred name exactly as today, always into `Inbox` —
+  capturing directly into a project/area/resource with no filename is Story
+  010, not yet implemented, and per-category seed templates are Story
+  007/009. `main` maps `--project`/`--area`/`--resource` (mutually exclusive,
+  via a `clap` `ArgGroup`) to `Category`, defaulting to `Inbox` when none are
+  given.
 - `run_init(cwd: &Path, name: Option<&str>) -> Result<String>` — resolves
   the target (`cwd` or `cwd.join(name)`) and its display form (`.` or
   `./<name>`), calls `workspace::init` (which runs `check_collision`
