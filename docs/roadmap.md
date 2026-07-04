@@ -1,23 +1,18 @@
 # Roadmap
 
-Gap analysis between the target behavior in [README.md](../README.md) /
-[user-stories](user-stories/) and what's implemented in `src/` today, sequenced
-by dependency rather than by date. Each milestone unlocks the one after it —
-see the _Why here_ line.
-
 ## Status snapshot (as of this doc)
 
-| Command       | State                                                                                                                                                                       |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init`        | Done                                                                                                                                                                        |
+| Command       | State                                                                                                                                                                                                                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init`        | Done                                                                                                                                                                                                                                                                                           |
 | `new`         | Partial — Inbox capture (story 001/002/007) works, including `note`-template pre-population and frontmatter/heading-aware filename inference; `--project`/`--area`/`--resource` flags aren't wired to the CLI yet, and only the `note` template exists (no layering, no `{{time}}`/`{{uuid}}`) |
-| `daily`       | Not started                                                                                                                                                                 |
-| `mv`          | Not started                                                                                                                                                                 |
-| `list`        | Not started                                                                                                                                                                 |
-| `status`      | Not started                                                                                                                                                                 |
-| `review`      | Not started (module stub only in `docs/design.md`)                                                                                                                          |
-| `config`      | Not started — `Config::load` reads one TOML file with no layering; no `templates` table; no `config` subcommand                                                             |
-| `completions` | Not started                                                                                                                                                                 |
+| `daily`       | Not started                                                                                                                                                                                                                                                                                    |
+| `mv`          | Not started                                                                                                                                                                                                                                                                                    |
+| `list`        | Not started                                                                                                                                                                                                                                                                                    |
+| `status`      | Not started                                                                                                                                                                                                                                                                                    |
+| `review`      | Not started (module stub only in `docs/design.md`)                                                                                                                                                                                                                                             |
+| `config`      | Not started — `Config::load` reads one TOML file with no layering; no `templates` table; no `config` subcommand                                                                                                                                                                                |
+| `completions` | Not started                                                                                                                                                                                                                                                                                    |
 
 ## Dependency graph
 
