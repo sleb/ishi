@@ -10,7 +10,7 @@ see the _Why here_ line.
 | Command       | State                                                                                                                                                                       |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `init`        | Done                                                                                                                                                                        |
-| `new`         | Partial — Inbox capture + editor-inferred filename work; `--project`/`--area`/`--resource` flags aren't wired to the CLI yet, and no template is applied to created content |
+| `new`         | Partial — Inbox capture (story 001/002/007) works, including `note`-template pre-population and frontmatter/heading-aware filename inference; `--project`/`--area`/`--resource` flags aren't wired to the CLI yet, and only the `note` template exists (no layering, no `{{time}}`/`{{uuid}}`) |
 | `daily`       | Not started                                                                                                                                                                 |
 | `mv`          | Not started                                                                                                                                                                 |
 | `list`        | Not started                                                                                                                                                                 |
@@ -74,13 +74,16 @@ already-started command.
 
 ### 2. Config layering + templates
 
-Today `Config::load` reads a single path with no merge step, and has no
-`templates` field at all — `new`/`daily`/etc. write raw editor content or an
-empty string instead of a rendered template. This is the one piece of
-plumbing that several later commands need, so it goes first in this group:
+Today `Config::load` reads a single path with no merge step, and
+`templates` only has a `note` field — `daily`/`project`/`area`/`resource`
+still have no template, so `--project`/`--area`/`--resource` and `daily`
+write raw editor content or an empty string instead of a rendered template.
+This is the one piece of plumbing that several later commands need, so it
+goes first in this group:
 
-- Add `templates: Templates` to `Config`, with `{{title}}`/`{{date}}`
-  rendering.
+- ~~Add `templates: Templates` to `Config`, with `{{title}}`/`{{date}}`
+  rendering.~~ Done for `note` (see below); still need `daily`/`project`/
+  `area`/`resource` templates.
 - Implement the `built-in → ~/.tick.toml → ./.tick.toml` merge (currently
   `Workspace::discover` only knows about bare category dirs, not config
   layering at all).
@@ -89,29 +92,36 @@ plumbing that several later commands need, so it goes first in this group:
   Doing it once now avoids reworking `new`'s content path twice.
 - Covers the config-resolution scenarios in user-stories/config.md 001–002
   (not yet the `tk config` CLI surface — that's item 8).
-- **Design update (2026-07-02), not yet implemented:** templates gained
-  `{{time}}`, `{{cursor}}`, and `{{uuid}}` placeholders alongside
-  `{{title}}`/`{{date}}`, and the editor-capture path (`new` with no
-  filename, and `--project`/`--area`/`--resource` with no filename) now
-  pre-populates `$EDITOR` with the rendered template instead of a blank
-  scratch file — `{{title}}` renders empty and `{{cursor}}` marks where the
-  editor's cursor should start (via a `+<line>` argument). This means
-  `editor::suggest_filename`'s title-inference can no longer assume the
-  title is the file's literal first line: it now skips a leading
-  frontmatter block, then takes the first Markdown heading line (any `#`
-  level), falling back to the first non-blank post-frontmatter line, then
-  to the timestamp fallback. `src/editor.rs`'s current `suggest_filename`
-  and the `Editor::capture` signature both need updating when this item is
-  picked up — see user-stories/new.md 001/007/010 and the updated
-  `editor` section of design.md. Worth checking `sleb/knap` before
-  implementing — it may already have LSP support, or heading/frontmatter
-  parsing logic, that could be reused as a shared library instead of
-  reimplementing here.
-- Covers user-stories/new.md 001, 007 (editor pre-population and
-  timestamp-fallback inference), 008, 009 (template rendering for named
-  notes and scaffolded `index.md`), 010 (capture into `--project`/`--area`/
-  `--resource` with no filename — needs item 1's flags plus this item's
-  rendering), and 011, 012 (`{{time}}` and `{{uuid}}` placeholders).
+- **Design update (2026-07-02):** templates gained `{{time}}`, `{{cursor}}`,
+  and `{{uuid}}` placeholders alongside `{{title}}`/`{{date}}`, and the
+  editor-capture path (`new` with no filename, and `--project`/`--area`/
+  `--resource` with no filename) now pre-populates `$EDITOR` with the
+  rendered template instead of a blank scratch file — `{{title}}` renders
+  empty and `{{cursor}}` marks where the editor's cursor should start (via
+  a `+<line>` argument). This means `editor::suggest_filename`'s
+  title-inference can no longer assume the title is the file's literal
+  first line: it now skips a leading frontmatter block, then takes the
+  first Markdown heading line (any `#` level), falling back to the first
+  non-blank post-frontmatter line, then to the timestamp fallback.
+  **Implemented for the `note` template/story 001**: `Config::templates`
+  gained a `note: String` field plus a pure `config::render` for
+  `{{date}}`/`{{title}}`; `Editor::capture` now takes the rendered `seed`
+  and locates/strips `{{cursor}}` itself (`editor::locate_cursor`);
+  `editor::suggest_filename` was reworked to the frontmatter-skip +
+  heading-search + fallback-line + timestamp algorithm described above.
+  Still open: `{{time}}`/`{{uuid}}` placeholders, templates for
+  `daily`/`project`/`area`/`resource`, and the `~/.tick.toml`/`./.tick.toml`
+  merge — see user-stories/new.md 007/010 (partially satisfied by the
+  `note`-only implementation, but not yet exercised for `--project`/
+  `--area`/`--resource`), 008, 009, 011, 012.
+- Covers user-stories/new.md 001 (Completed), 007 (editor pre-population
+  and timestamp-fallback inference — implemented for the `note` template;
+  not yet re-verified against `--project`/`--area`/`--resource`), 008, 009
+  (template rendering for named notes and scaffolded `index.md` — still
+  needs `project`/`area`/`resource` templates), 010 (capture into
+  `--project`/`--area`/`--resource` with no filename — needs item 1's flags
+  plus this item's remaining templates), and 011, 012 (`{{time}}` and
+  `{{uuid}}` placeholders).
 
 ### 3. `tk daily`
 

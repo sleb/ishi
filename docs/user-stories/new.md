@@ -3,10 +3,7 @@
 ## User Story 001
 
 - **Summary:** Capture a quick thought without leaving the terminal or naming a file
-- **Status:** Needs rework — spec changed 2026-07-02 (editor now opens
-  pre-populated with the rendered `note` template instead of a blank
-  scratch file, per story 007). The current implementation still does
-  simple first-line inference against a blank file; see roadmap.md item 2.
+- **Status:** Completed
 - **Depends on:** [init.md](init.md) Story 001, Story 007 (editor pre-population this story's rework relies on)
 
 ### Use Case
