@@ -94,6 +94,14 @@ pub enum ConfigError {
         #[source]
         source: toml::de::Error,
     },
+    #[error("{path} already exists")]
+    AlreadyExists { path: String },
+    #[error("failed to write {path}")]
+    Write {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -300,6 +308,69 @@ impl Config {
             },
         ))
     }
+}
+
+/// Renders `Config::default()` as the exact `.tick.toml` shape documented in
+/// README.md's Configuration section — nested `[folders]`/`[defaults]`/
+/// `[templates]` tables, no `#:schema` line (that's config.md 006, not this
+/// story).
+pub fn default_toml() -> String {
+    let defaults = Config::default();
+    let templates = &defaults.templates;
+    format!(
+        r#"[folders]
+inbox = "{}"
+projects = "{}"
+areas = "{}"
+resources = "{}"
+archive = "{}"
+
+[defaults]
+extension = "{}"
+
+[templates]
+note = """
+{}"""
+
+daily = """
+{}"""
+
+project = """
+{}"""
+
+area = """
+{}"""
+
+resource = """
+{}"""
+"#,
+        defaults.category_dirs[0],
+        defaults.category_dirs[1],
+        defaults.category_dirs[2],
+        defaults.category_dirs[3],
+        defaults.category_dirs[4],
+        defaults.default_extension,
+        templates.note,
+        templates.daily,
+        templates.project,
+        templates.area,
+        templates.resource,
+    )
+}
+
+/// Writes `default_toml()` to `path`. Errors with `AlreadyExists` (and
+/// leaves `path` untouched) if a file is already there, rather than
+/// overwriting a user's customizations.
+pub fn init(path: &Path) -> Result<(), ConfigError> {
+    if path.exists() {
+        return Err(ConfigError::AlreadyExists {
+            path: path.display().to_string(),
+        });
+    }
+    fs::write(path, default_toml()).map_err(|source| ConfigError::Write {
+        path: path.display().to_string(),
+        source,
+    })
 }
 
 #[cfg(test)]
@@ -605,5 +676,62 @@ mod tests {
         let (config, _origins) = Config::resolve(&path, None).unwrap();
 
         assert_eq!(config, Config::default());
+    }
+
+    #[test]
+    fn default_toml_round_trips_to_config_default() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(".tick.toml");
+        fs::write(&path, default_toml()).unwrap();
+
+        let (config, _origins) = Config::resolve(&path, None).unwrap();
+
+        assert_eq!(config, Config::default());
+    }
+
+    #[test]
+    fn default_toml_has_no_schema_line() {
+        assert!(!default_toml().starts_with("#:schema"));
+    }
+
+    #[test]
+    fn default_toml_matches_readme_documented_shape() {
+        let toml = default_toml();
+
+        // Nested tables, not the legacy flat shape.
+        assert!(toml.contains("[folders]\ninbox = \"0-Inbox\""));
+        assert!(toml.contains("[defaults]\nextension = \"md\""));
+        assert!(toml.contains("[templates]\nnote = \"\"\"\n"));
+
+        // Templates are triple-quoted multi-line strings, not single-line
+        // escaped ones (README documents them as `"""..."""` blocks).
+        assert!(toml.contains(
+            "note = \"\"\"\n---\nlast_updated: {{date}}\n---\n# {{cursor}}{{title}}\n\"\"\""
+        ));
+        assert!(!toml.contains("note = \"---\\n"));
+    }
+
+    #[test]
+    fn init_creates_file_when_absent() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(".tick.toml");
+
+        init(&path).unwrap();
+
+        assert!(path.exists());
+        let (config, _origins) = Config::resolve(&path, None).unwrap();
+        assert_eq!(config, Config::default());
+    }
+
+    #[test]
+    fn init_refuses_when_file_already_exists() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(".tick.toml");
+        fs::write(&path, "custom content").unwrap();
+
+        let err = init(&path).unwrap_err();
+
+        assert!(matches!(err, ConfigError::AlreadyExists { .. }));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "custom content");
     }
 }

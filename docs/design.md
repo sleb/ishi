@@ -131,6 +131,17 @@ Parses `.tick.toml` and layers it across three sources — built-in defaults,
   wins over the built-in default). Neither file needs to exist; a missing
   file behaves as if it set no keys at all. Replaces the old single-file
   `Config::load`.
+- `ConfigError` also has `AlreadyExists { path }` and `Write { path, source }`
+  variants, for the writer below.
+- `default_toml() -> String` — renders `Config::default()` as the exact
+  `.tick.toml` shape documented in README.md's Configuration section
+  (nested `[folders]`/`[defaults]`/`[templates]` tables, templates as
+  triple-quoted strings). Pure — no filesystem access. No `#:schema` line
+  (config.md 006, not yet implemented).
+- `init(path: &Path) -> Result<()>` — writes `default_toml()` to `path`;
+  errors with `AlreadyExists` (leaving `path` untouched) if a file is
+  already there, rather than overwriting a user's customizations. Backs
+  `tk config init`/`tk config init -g` (see `cli::run_config_init` below).
 - `render(template: &str, title: &str, date: &str, time: &str, uuid: &str) -> String`
   — fills in `{{date}}`, `{{title}}`, `{{time}}`, and `{{uuid}}`, leaving
   `{{cursor}}` untouched (that marker is `Editor`'s job — see below). All
@@ -323,6 +334,17 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
   internally for both forms), and renders the outcome (full create /
   partial fill-in / already-complete) into the exact message `main`
   prints.
+- `run_config_init(path: &Path, display: &str) -> Result<String>` — calls
+  `config::init(path)` and, on success, returns `"Created {display}"`;
+  `display` is the caller-computed human-readable form (`"./.tick.toml"` or
+  `"~/.tick.toml"`), mirroring `run_init`'s `(target, display)` split.
+  `config::ConfigError::AlreadyExists`'s message (using the same path
+  passed to `config::init`) is what surfaces for config.md 004 — no
+  separate error variant needed here. Backs `main`'s
+  `Commands::Config { action: ConfigAction::Init { global } }` dispatch,
+  which computes `path`/`display` from `-g` before calling this. Bare
+  `tk config` (provenance display) and `config edit` are still open — see
+  `docs/lld/006-config-init.md`.
 
 ## Notes
 

@@ -28,6 +28,21 @@ enum Commands {
     Daily,
     /// Scaffold a PARA system.
     Init { name: Option<String> },
+    /// View or manage the effective config.
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+}
+
+#[derive(Debug, PartialEq, Subcommand)]
+enum ConfigAction {
+    /// Write a new `.tick.toml` (or `~/.tick.toml` with `-g`) populated
+    /// with the built-in defaults.
+    Init {
+        #[arg(short = 'g', long = "global")]
+        global: bool,
+    },
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Args)]
@@ -109,6 +124,21 @@ fn main() -> anyhow::Result<()> {
             let mut ui = TerminalUi;
             let path = cli::run_new(&ws, &editor, &mut ui, category.into_kind(), filename)?;
             println!("Created {}", path.display());
+        }
+        Commands::Config {
+            action: ConfigAction::Init { global },
+        } => {
+            let (path, display) = if global {
+                let home = env::var_os("HOME").context("$HOME is not set")?;
+                (
+                    PathBuf::from(&home).join(".tick.toml"),
+                    "~/.tick.toml".to_string(),
+                )
+            } else {
+                (cwd.join(".tick.toml"), "./.tick.toml".to_string())
+            };
+            let message = cli::run_config_init(&path, &display)?;
+            println!("{message}");
         }
     }
 
@@ -289,5 +319,48 @@ mod tests {
         let cli = Cli::parse_from(["tk", "init"]);
 
         assert_eq!(cli.command, Commands::Init { name: None });
+    }
+
+    #[test]
+    fn parses_config_init_with_no_flag() {
+        let cli = Cli::parse_from(["tk", "config", "init"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Config {
+                action: ConfigAction::Init { global: false }
+            }
+        );
+    }
+
+    #[test]
+    fn parses_config_init_global_short_flag() {
+        let cli = Cli::parse_from(["tk", "config", "init", "-g"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Config {
+                action: ConfigAction::Init { global: true }
+            }
+        );
+    }
+
+    #[test]
+    fn parses_config_init_global_long_flag() {
+        let cli = Cli::parse_from(["tk", "config", "init", "--global"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Config {
+                action: ConfigAction::Init { global: true }
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_config_with_no_subcommand() {
+        let result = Cli::try_parse_from(["tk", "config"]);
+
+        assert!(result.is_err());
     }
 }

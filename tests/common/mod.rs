@@ -56,6 +56,22 @@ pub fn tk(args: &[&str], dir: &Path, editor: Option<&Path>, stdin: Option<&str>)
         .expect("failed to wait on tk's output")
 }
 
+/// Runs the real `tk` binary with `args` in `dir`, with `$HOME` pointed at
+/// `home` and `$EDITOR` unset. For tests exercising `-g`/`--global` behavior
+/// that needs a controlled home directory rather than the real one.
+pub fn tk_with_home(args: &[&str], dir: &Path, home: &Path) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_tk"))
+        .args(args)
+        .current_dir(dir)
+        .env("HOME", home)
+        .env_remove("EDITOR")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("failed to run tk")
+}
+
 pub fn stdout(output: &Output) -> String {
     String::from_utf8(output.stdout.clone()).expect("stdout was not valid utf-8")
 }

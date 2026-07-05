@@ -71,7 +71,7 @@
 
 ---
 
-## User Story 003
+## User Story 003 ✅
 
 - **Summary:** Get a starting `.tick.toml` instead of writing one from scratch
 - **Depends on:** Story 002 (built-in default values this scaffolds)
@@ -98,7 +98,7 @@
 
 ---
 
-## User Story 004
+## User Story 004 ✅
 
 - **Summary:** Don't clobber my customized config by re-running init
 - **Depends on:** Story 003 (the `init` command this guards)

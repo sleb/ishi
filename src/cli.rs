@@ -149,6 +149,14 @@ pub fn run_init(cwd: &Path, name: Option<&str>) -> anyhow::Result<String> {
     })
 }
 
+/// Writes the default config to `path` and returns the exact confirmation
+/// message `main` prints. `display` is the caller-computed human-readable
+/// form (`"./.tick.toml"` or `"~/.tick.toml"`).
+pub fn run_config_init(path: &Path, display: &str) -> anyhow::Result<String> {
+    config::init(path)?;
+    Ok(format!("Created {display}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -789,6 +797,29 @@ mod tests {
         let err = run_init(dir.path(), Some("existing-file")).unwrap_err();
 
         assert!(err.to_string().contains("existing-file"));
+        assert!(err.to_string().contains("already exists"));
+    }
+
+    #[test]
+    fn run_config_init_creates_file_and_returns_message() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(".tick.toml");
+
+        let message = run_config_init(&path, "./.tick.toml").unwrap();
+
+        assert_eq!(message, "Created ./.tick.toml");
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn run_config_init_surfaces_already_exists_error() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(".tick.toml");
+        fs::write(&path, "custom content").unwrap();
+
+        let err = run_config_init(&path, "./.tick.toml").unwrap_err();
+
+        assert!(err.to_string().contains(&path.display().to_string()));
         assert!(err.to_string().contains("already exists"));
     }
 
