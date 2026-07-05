@@ -1,5 +1,5 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
@@ -43,6 +43,12 @@ enum ConfigAction {
         #[arg(short = 'g', long = "global")]
         global: bool,
     },
+    /// Open `.tick.toml` (or `~/.tick.toml` with `-g`) in `$EDITOR`,
+    /// creating it with the default config first if it doesn't exist yet.
+    Edit {
+        #[arg(short = 'g', long = "global")]
+        global: bool,
+    },
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Args)]
@@ -76,6 +82,20 @@ impl NewCategory {
             Kind::Inbox
         }
     }
+}
+
+/// Computes the local-vs-global config target: the path to write/open, and
+/// its human-readable display form (`"./.tick.toml"` or `"~/.tick.toml"`).
+fn config_target(cwd: &Path, global: bool) -> anyhow::Result<(PathBuf, String)> {
+    Ok(if global {
+        let home = env::var_os("HOME").context("$HOME is not set")?;
+        (
+            PathBuf::from(&home).join(".tick.toml"),
+            "~/.tick.toml".to_string(),
+        )
+    } else {
+        (cwd.join(".tick.toml"), "./.tick.toml".to_string())
+    })
 }
 
 fn run_daily_command(ws: &Workspace) -> anyhow::Result<()> {
@@ -128,17 +148,19 @@ fn main() -> anyhow::Result<()> {
         Commands::Config {
             action: ConfigAction::Init { global },
         } => {
-            let (path, display) = if global {
-                let home = env::var_os("HOME").context("$HOME is not set")?;
-                (
-                    PathBuf::from(&home).join(".tick.toml"),
-                    "~/.tick.toml".to_string(),
-                )
-            } else {
-                (cwd.join(".tick.toml"), "./.tick.toml".to_string())
-            };
+            let (path, display) = config_target(&cwd, global)?;
             let message = cli::run_config_init(&path, &display)?;
             println!("{message}");
+        }
+        Commands::Config {
+            action: ConfigAction::Edit { global },
+        } => {
+            let (path, display) = config_target(&cwd, global)?;
+            let editor = RealEditor;
+            if cli::run_config_edit(&path, &editor)? {
+                println!("Created {display}");
+            }
+            println!("Opening $EDITOR...");
         }
     }
 
@@ -353,6 +375,42 @@ mod tests {
             cli.command,
             Commands::Config {
                 action: ConfigAction::Init { global: true }
+            }
+        );
+    }
+
+    #[test]
+    fn parses_config_edit_with_no_flag() {
+        let cli = Cli::parse_from(["tk", "config", "edit"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Config {
+                action: ConfigAction::Edit { global: false }
+            }
+        );
+    }
+
+    #[test]
+    fn parses_config_edit_global_short_flag() {
+        let cli = Cli::parse_from(["tk", "config", "edit", "-g"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Config {
+                action: ConfigAction::Edit { global: true }
+            }
+        );
+    }
+
+    #[test]
+    fn parses_config_edit_global_long_flag() {
+        let cli = Cli::parse_from(["tk", "config", "edit", "--global"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Config {
+                action: ConfigAction::Edit { global: true }
             }
         );
     }

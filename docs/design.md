@@ -342,9 +342,21 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
   passed to `config::init`) is what surfaces for config.md 004 — no
   separate error variant needed here. Backs `main`'s
   `Commands::Config { action: ConfigAction::Init { global } }` dispatch,
-  which computes `path`/`display` from `-g` before calling this. Bare
-  `tk config` (provenance display) and `config edit` are still open — see
+  which computes `path`/`display` from `-g` before calling this. See
   `docs/lld/006-config-init.md`.
+- `run_config_edit(path: &Path, editor: &dyn Editor) -> Result<bool>` — calls
+  `config::init(path)`, treating `Ok(())` as "created" and
+  `Err(ConfigError::AlreadyExists { .. })` as "already there" (any other
+  error propagates), then calls `editor.open(path)` and returns whether it
+  had to create the file first. Matching `AlreadyExists` by variant (not a
+  `path.exists()` pre-check) avoids a TOCTOU gap, the same reasoning
+  `config::init` itself already encodes. Backs `main`'s
+  `Commands::Config { action: ConfigAction::Edit { global } }` dispatch,
+  which computes `path`/`display` from `-g` via the same helper
+  (`config_target`) `ConfigAction::Init`'s arm uses, then prints
+  `Created {display}` only when created and `Opening $EDITOR...`
+  unconditionally. See `docs/lld/007-config-edit.md`. Bare `tk config`
+  (provenance display) and the `#:schema` file are still open.
 
 ## Notes
 

@@ -60,3 +60,60 @@ fn config_init_global_refuses_when_global_file_already_exists() {
         "custom content"
     );
 }
+
+#[test]
+fn config_edit_opens_existing_local_file_via_real_dispatch() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join(".tick.toml"), "custom content").unwrap();
+    let editor = common::write_fake_editor(dir.path(), "fake-editor", "echo opened >> \"$1\"");
+
+    let output = common::tk(&["config", "edit"], dir.path(), Some(&editor), None);
+
+    assert!(output.status.success());
+    assert_eq!(common::stdout(&output), "Opening $EDITOR...\n");
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join(".tick.toml")).unwrap(),
+        "custom contentopened\n"
+    );
+}
+
+#[test]
+fn config_edit_creates_defaults_then_opens_when_local_file_missing() {
+    let dir = tempdir().unwrap();
+    let editor = common::write_fake_editor(dir.path(), "fake-editor", "true");
+
+    let output = common::tk(&["config", "edit"], dir.path(), Some(&editor), None);
+
+    assert!(output.status.success());
+    assert_eq!(
+        common::stdout(&output),
+        "Created ./.tick.toml\nOpening $EDITOR...\n"
+    );
+    assert!(dir.path().join(".tick.toml").is_file());
+}
+
+#[test]
+fn config_edit_global_targets_home_file_and_leaves_local_untouched() {
+    let cwd = tempdir().unwrap();
+    let home = tempdir().unwrap();
+    std::fs::write(cwd.path().join(".tick.toml"), "custom content").unwrap();
+    let editor = common::write_fake_editor(cwd.path(), "fake-editor", "true");
+
+    let output = common::tk_with_home_and_editor(
+        &["config", "edit", "-g"],
+        cwd.path(),
+        home.path(),
+        &editor,
+    );
+
+    assert!(output.status.success());
+    assert_eq!(
+        common::stdout(&output),
+        "Created ~/.tick.toml\nOpening $EDITOR...\n"
+    );
+    assert!(home.path().join(".tick.toml").is_file());
+    assert_eq!(
+        std::fs::read_to_string(cwd.path().join(".tick.toml")).unwrap(),
+        "custom content"
+    );
+}

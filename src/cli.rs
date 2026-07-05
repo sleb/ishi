@@ -157,6 +157,21 @@ pub fn run_config_init(path: &Path, display: &str) -> anyhow::Result<String> {
     Ok(format!("Created {display}"))
 }
 
+/// Opens `path` in `$EDITOR`, creating it with the default config first
+/// (via `config::init`) if it doesn't exist yet. Returns whether it had to
+/// create the file first, so `main` can print `Created {display}` before
+/// `Opening $EDITOR...` on the no-config-yet path, mirroring `run_daily`'s
+/// existing "print before handing control to a blocking editor" convention.
+pub fn run_config_edit(path: &Path, editor: &dyn Editor) -> anyhow::Result<bool> {
+    let created = match config::init(path) {
+        Ok(()) => true,
+        Err(config::ConfigError::AlreadyExists { .. }) => false,
+        Err(e) => return Err(e.into()),
+    };
+    editor.open(path)?;
+    Ok(created)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -821,6 +836,95 @@ mod tests {
 
         assert!(err.to_string().contains(&path.display().to_string()));
         assert!(err.to_string().contains("already exists"));
+    }
+
+    #[test]
+    fn run_config_edit_opens_existing_file_untouched() {
+        use std::cell::RefCell;
+
+        struct RecordingEditor {
+            opened_path: RefCell<Option<std::path::PathBuf>>,
+        }
+
+        impl Editor for RecordingEditor {
+            fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
+                unimplemented!("not exercised by this test")
+            }
+
+            fn open(&self, path: &Path) -> Result<(), EditorError> {
+                *self.opened_path.borrow_mut() = Some(path.to_path_buf());
+                Ok(())
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(".tick.toml");
+        fs::write(&path, "custom content").unwrap();
+        let editor = RecordingEditor {
+            opened_path: RefCell::new(None),
+        };
+
+        let created = run_config_edit(&path, &editor).unwrap();
+
+        assert!(!created);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "custom content");
+        assert_eq!(*editor.opened_path.borrow(), Some(path));
+    }
+
+    #[test]
+    fn run_config_edit_creates_defaults_then_opens_when_missing() {
+        use std::cell::RefCell;
+
+        struct RecordingEditor {
+            opened_path: RefCell<Option<std::path::PathBuf>>,
+        }
+
+        impl Editor for RecordingEditor {
+            fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
+                unimplemented!("not exercised by this test")
+            }
+
+            fn open(&self, path: &Path) -> Result<(), EditorError> {
+                *self.opened_path.borrow_mut() = Some(path.to_path_buf());
+                Ok(())
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(".tick.toml");
+        let editor = RecordingEditor {
+            opened_path: RefCell::new(None),
+        };
+
+        let created = run_config_edit(&path, &editor).unwrap();
+
+        assert!(created);
+        let (config, _origins) = Config::resolve(&path, None).unwrap();
+        assert_eq!(config, Config::default());
+        assert_eq!(*editor.opened_path.borrow(), Some(path));
+    }
+
+    #[test]
+    fn run_config_edit_surfaces_real_write_error() {
+        struct PanicEditorOnOpen;
+
+        impl Editor for PanicEditorOnOpen {
+            fn capture(&self, _seed: &str) -> Result<(String, String), EditorError> {
+                unimplemented!("not exercised by this test")
+            }
+
+            fn open(&self, _path: &Path) -> Result<(), EditorError> {
+                panic!("open should not be invoked when config::init fails")
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("missing-parent").join(".tick.toml");
+        let editor = PanicEditorOnOpen;
+
+        let err = run_config_edit(&path, &editor);
+
+        assert!(err.is_err());
     }
 
     struct PanicOnOpenEditor;

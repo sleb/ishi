@@ -130,7 +130,7 @@
 
 ---
 
-## User Story 005
+## User Story 005 ✅
 
 - **Summary:** Jump straight into editing my config, no need to remember the filename
 - **Depends on:** Story 003 (creates defaults when no config exists yet, reused here)

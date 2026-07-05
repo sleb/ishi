@@ -11,7 +11,7 @@
 | `list`        | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `status`      | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `review`      | Not started (module stub only in `docs/design.md`)                                                                                                                                                                                                                                                                                                                                                                               |
-| `config`      | Layering done, and `config init`/`config init -g` are implemented — `edit` and the `#:schema` file are still open                                                                                                                                                                                                                                                                                                               |
+| `config`      | Layering done, and `config init`/`config init -g`/`config edit`/`config edit -g` are implemented — bare `tk config` (provenance display) and the `#:schema` file are still open                                                                                                                                                                                                                                                |
 | `completions` | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ## Dependency graph
@@ -182,9 +182,10 @@ nothing else in this roadmap depends on the CLI surface existing, only on the
 resolution logic underneath it.
 
 `config init`/`config init -g` are done, per
-[docs/lld/006-config-init.md](lld/006-config-init.md). Still open: bare
-`tk config` (provenance display), `config edit`/`config edit -g`, and the
-`#:schema` JSON Schema file.
+[docs/lld/006-config-init.md](lld/006-config-init.md). `config edit`/`config
+edit -g` are done, per [docs/lld/007-config-edit.md](lld/007-config-edit.md).
+Still open: bare `tk config` (provenance display) and the `#:schema` JSON
+Schema file.
 
 - Covers user-stories/config.md 003–006.
 
