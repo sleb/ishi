@@ -1,6 +1,7 @@
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use std::time::SystemTime;
 
 use thiserror::Error;
 
@@ -52,6 +53,85 @@ fn with_extension(name: &str, default_extension: &str) -> String {
     } else {
         format!("{name}.{default_extension}")
     }
+}
+
+pub struct ListedItem {
+    pub name: String,
+    pub title: String,
+    pub updated_days_ago: u64,
+}
+
+/// Thin wrapper over `gist::parser::first_heading_text`: skips a leading
+/// YAML frontmatter block if present, then returns the first Markdown
+/// heading line's text (any `#` level), or `None` if none is found.
+pub fn infer_title(content: &str) -> Option<String> {
+    gist::parser::first_heading_text(content)
+}
+
+/// Lists `category`'s items: for a directory-style category (`Project`/
+/// `Area`), one row per subdirectory, sourced from its `index.md`; for a
+/// flat category (`Resource`/`Inbox`), one row per file, name being the
+/// file stem. Rows are sorted alphabetically by name. Returns `Ok(vec![])`
+/// if `category`'s directory doesn't exist yet, rather than erroring — an
+/// empty/not-yet-created category is a normal state, not a fault.
+pub fn list(ws: &Workspace, category: Category) -> Result<Vec<ListedItem>, ItemsError> {
+    list_at(ws, category, SystemTime::now())
+}
+
+fn list_at(
+    ws: &Workspace,
+    category: Category,
+    now: SystemTime,
+) -> Result<Vec<ListedItem>, ItemsError> {
+    let category_dir = ws.category_dir(category);
+    let entries = match fs::read_dir(&category_dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(e) => return Err(e.into()),
+    };
+
+    let mut items = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+        let path = entry.path();
+
+        let (name, source_path) = if category.is_directory_style() {
+            if !path.is_dir() {
+                continue;
+            }
+            let name = path
+                .file_name()
+                .expect("directory entry has a file name")
+                .to_string_lossy()
+                .into_owned();
+            let index = path.join(format!("index.{}", ws.config.default_extension));
+            (name, index)
+        } else {
+            if !path.is_file() {
+                continue;
+            }
+            let name = path
+                .file_stem()
+                .expect("file entry has a file name")
+                .to_string_lossy()
+                .into_owned();
+            (name, path.clone())
+        };
+
+        let content = fs::read_to_string(&source_path)?;
+        let title = infer_title(&content).unwrap_or_else(|| name.clone());
+        let modified = fs::metadata(&source_path)?.modified()?;
+        let updated_days_ago = now.duration_since(modified).unwrap_or_default().as_secs() / 86400;
+
+        items.push(ListedItem {
+            name,
+            title,
+            updated_days_ago,
+        });
+    }
+
+    items.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(items)
 }
 
 #[cfg(test)]
@@ -120,5 +200,109 @@ mod tests {
             dir.path().join("1-Projects/website-redesign/index.md")
         );
         assert!(path.exists());
+    }
+
+    #[test]
+    fn infer_title_none_when_no_heading() {
+        assert_eq!(infer_title("plain text\nno heading"), None);
+    }
+
+    #[test]
+    fn infer_title_none_when_frontmatter_has_no_heading_after_it() {
+        assert_eq!(infer_title("---\nk: v\n---\nplain text"), None);
+    }
+
+    fn set_mtime(path: &std::path::Path, days_ago: u64, now: SystemTime) {
+        let modified = now - std::time::Duration::from_secs(days_ago * 86400);
+        let file = fs::File::open(path).unwrap();
+        file.set_modified(modified).unwrap();
+    }
+
+    fn fixed_now() -> SystemTime {
+        SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_782_916_245)
+    }
+
+    #[test]
+    fn list_at_directory_style_category_returns_name_title_and_age() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        let path1 = create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            "# Website Redesign\n",
+        )
+        .unwrap();
+        set_mtime(&path1, 2, now);
+        let path2 = create(&ws, Category::Project, "my-project", "# My Project\n").unwrap();
+        set_mtime(&path2, 21, now);
+
+        let items = list_at(&ws, Category::Project, now).unwrap();
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].name, "my-project");
+        assert_eq!(items[0].title, "My Project");
+        assert_eq!(items[0].updated_days_ago, 21);
+        assert_eq!(items[1].name, "website-redesign");
+        assert_eq!(items[1].title, "Website Redesign");
+        assert_eq!(items[1].updated_days_ago, 2);
+    }
+
+    #[test]
+    fn list_at_flat_category_uses_file_stem_as_name() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        let path = create(&ws, Category::Resource, "api-notes", "# API Design Notes\n").unwrap();
+        set_mtime(&path, 5, now);
+
+        let items = list_at(&ws, Category::Resource, now).unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "api-notes");
+        assert_eq!(items[0].title, "API Design Notes");
+        assert_eq!(items[0].updated_days_ago, 5);
+    }
+
+    #[test]
+    fn list_at_sorts_alphabetically_by_name() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        create(&ws, Category::Project, "website-redesign", "").unwrap();
+        create(&ws, Category::Project, "my-project", "").unwrap();
+
+        let items = list_at(&ws, Category::Project, now).unwrap();
+
+        assert_eq!(items[0].name, "my-project");
+        assert_eq!(items[1].name, "website-redesign");
+    }
+
+    #[test]
+    fn list_at_missing_category_directory_returns_empty() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let items = list_at(&ws, Category::Area, fixed_now()).unwrap();
+
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn list_at_falls_back_to_name_when_no_heading() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        create(&ws, Category::Inbox, "quick-thought", "just plain text").unwrap();
+
+        let items = list_at(&ws, Category::Inbox, fixed_now()).unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "quick-thought");
+        assert_eq!(items[0].title, "quick-thought");
     }
 }

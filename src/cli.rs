@@ -172,6 +172,57 @@ pub fn run_config_edit(path: &Path, editor: &dyn Editor) -> anyhow::Result<bool>
     Ok(created)
 }
 
+/// Formats a raw day-count the way `list`/`status`/`review` all render
+/// ages: `"today"`, `"1 day ago"`, `"N days ago"`.
+fn format_age(days: u64) -> String {
+    match days {
+        0 => "today".to_string(),
+        1 => "1 day ago".to_string(),
+        n => format!("{n} days ago"),
+    }
+}
+
+/// Renders `items::list`'s rows as the `NAME`/`TITLE`/`UPDATED` table:
+/// header first, then one row per item, each column left-justified to
+/// `3 +` the longest value in that column (including its header) so
+/// columns line up regardless of content width.
+pub fn run_list(ws: &Workspace, category: Category) -> anyhow::Result<String> {
+    let items = items::list(ws, category)?;
+
+    let ages: Vec<String> = items
+        .iter()
+        .map(|i| format_age(i.updated_days_ago))
+        .collect();
+
+    let name_width = ["NAME"]
+        .into_iter()
+        .chain(items.iter().map(|i| i.name.as_str()))
+        .map(str::len)
+        .max()
+        .unwrap_or(0)
+        + 3;
+    let title_width = ["TITLE"]
+        .into_iter()
+        .chain(items.iter().map(|i| i.title.as_str()))
+        .map(str::len)
+        .max()
+        .unwrap_or(0)
+        + 3;
+
+    let mut lines = Vec::with_capacity(items.len() + 1);
+    lines.push(format!(
+        "{:<name_width$}{:<title_width$}UPDATED",
+        "NAME", "TITLE"
+    ));
+    for (item, age) in items.iter().zip(ages.iter()) {
+        lines.push(format!(
+            "{:<name_width$}{:<title_width$}{age}",
+            item.name, item.title
+        ));
+    }
+    Ok(lines.join("\n"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1050,5 +1101,84 @@ mod tests {
         items::create(&ws, Category::Inbox, &today, "content").unwrap();
 
         assert!(daily_note_exists(&ws));
+    }
+
+    #[test]
+    fn format_age_today() {
+        assert_eq!(format_age(0), "today");
+    }
+
+    #[test]
+    fn format_age_one_day() {
+        assert_eq!(format_age(1), "1 day ago");
+    }
+
+    #[test]
+    fn format_age_many_days() {
+        assert_eq!(format_age(21), "21 days ago");
+    }
+
+    fn backdate(path: &std::path::Path, days_ago: u64) {
+        let modified =
+            std::time::SystemTime::now() - std::time::Duration::from_secs(days_ago * 86400);
+        let file = fs::File::open(path).unwrap();
+        file.set_modified(modified).unwrap();
+    }
+
+    #[test]
+    fn run_list_renders_directory_style_category() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let path1 = items::create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            "# Website Redesign\n",
+        )
+        .unwrap();
+        backdate(&path1, 2);
+        let path2 = items::create(&ws, Category::Project, "my-project", "# My Project\n").unwrap();
+        backdate(&path2, 21);
+
+        let output = run_list(&ws, Category::Project).unwrap();
+
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines[0], "NAME               TITLE              UPDATED");
+        assert_eq!(
+            lines[1],
+            "my-project         My Project         21 days ago"
+        );
+        assert_eq!(lines[2], "website-redesign   Website Redesign   2 days ago");
+    }
+
+    #[test]
+    fn run_list_renders_flat_category() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let path =
+            items::create(&ws, Category::Resource, "api-notes", "# API Design Notes\n").unwrap();
+        backdate(&path, 5);
+
+        let output = run_list(&ws, Category::Resource).unwrap();
+
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines[0], "NAME        TITLE              UPDATED");
+        assert_eq!(lines[1], "api-notes   API Design Notes   5 days ago");
+    }
+
+    #[test]
+    fn run_list_renders_single_row_area_category() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        items::create(&ws, Category::Area, "health", "# Health\n").unwrap();
+
+        let output = run_list(&ws, Category::Area).unwrap();
+
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines[0], "NAME     TITLE    UPDATED");
+        assert_eq!(lines[1], "health   Health   today");
     }
 }

@@ -31,10 +31,11 @@ unlike sorting by Updated.
 
 ---
 
-## User Story 001
+## User Story 001 ✅
 
 - **Summary:** Listing a category shows Name, Title, and Updated columns instead of bare paths
 - **Depends on:** [new.md](new.md) Story 003, Story 004, Story 005 (project/area/resource items to list), [review.md](review.md) Story 001 (shared raw-days age convention)
+- **Note:** Story 005 (Title-falls-back-to-Name) was folded into the same LLD as this story — see [docs/lld/007-list-base-columns.md](../lld/007-list-base-columns.md).
 
 ### Use Case
 
@@ -155,7 +156,7 @@ unlike sorting by Updated.
 
 ---
 
-## User Story 005
+## User Story 005 ✅
 
 - **Summary:** Title falls back to the item's Name when no heading can be inferred
 - **Depends on:** Story 001 (base column format)

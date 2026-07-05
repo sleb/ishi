@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 
-use tick::category::Kind;
+use tick::category::{Category, Kind};
 use tick::cli::{self, TerminalUi};
 use tick::editor::RealEditor;
 use tick::workspace::Workspace;
@@ -33,6 +33,27 @@ enum Commands {
         #[command(subcommand)]
         action: ConfigAction,
     },
+    /// List items in a category.
+    List { category: ListCategory },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, clap::ValueEnum)]
+enum ListCategory {
+    Project,
+    Area,
+    Resource,
+    Inbox,
+}
+
+impl From<ListCategory> for Category {
+    fn from(category: ListCategory) -> Self {
+        match category {
+            ListCategory::Project => Category::Project,
+            ListCategory::Area => Category::Area,
+            ListCategory::Resource => Category::Resource,
+            ListCategory::Inbox => Category::Inbox,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Subcommand)]
@@ -161,6 +182,12 @@ fn main() -> anyhow::Result<()> {
                 println!("Created {display}");
             }
             println!("Opening $EDITOR...");
+        }
+        Commands::List { category } => {
+            let ws = Workspace::discover(&cwd, home_config.as_deref())
+                .context("failed to find a PARA workspace")?;
+            let output = cli::run_list(&ws, category.into())?;
+            println!("{output}");
         }
     }
 
@@ -420,5 +447,53 @@ mod tests {
         let result = Cli::try_parse_from(["tk", "config"]);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn parses_list_project() {
+        let cli = Cli::parse_from(["tk", "list", "project"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::List {
+                category: ListCategory::Project
+            }
+        );
+    }
+
+    #[test]
+    fn parses_list_area() {
+        let cli = Cli::parse_from(["tk", "list", "area"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::List {
+                category: ListCategory::Area
+            }
+        );
+    }
+
+    #[test]
+    fn parses_list_resource() {
+        let cli = Cli::parse_from(["tk", "list", "resource"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::List {
+                category: ListCategory::Resource
+            }
+        );
+    }
+
+    #[test]
+    fn parses_list_inbox() {
+        let cli = Cli::parse_from(["tk", "list", "inbox"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::List {
+                category: ListCategory::Inbox
+            }
+        );
     }
 }
