@@ -96,58 +96,209 @@ pub enum ConfigError {
     },
 }
 
-#[derive(Debug, Default, Deserialize)]
-struct TomlConfig {
-    default_extension: Option<String>,
-    category_dirs: Option<TomlCategoryDirs>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Source {
+    Default,
+    User,
+    Local,
+    LocalOverridesUser,
+}
+
+impl Source {
+    /// The exact annotation `tk config` prints after each key, per
+    /// config.md 001 (`# default`, `# user`, `# local`, `# local, overrides user`).
+    pub fn comment(self) -> &'static str {
+        match self {
+            Source::Default => "default",
+            Source::User => "user",
+            Source::Local => "local",
+            Source::LocalOverridesUser => "local, overrides user",
+        }
+    }
+}
+
+pub struct ConfigOrigins {
+    /// Indexed by `Category as usize`, same convention as `Config::category_dirs`.
+    pub category_dirs: [Source; 5],
+    pub default_extension: Source,
+    pub templates: TemplateOrigins,
+}
+
+pub struct TemplateOrigins {
+    pub note: Source,
+    pub daily: Source,
+    pub project: Source,
+    pub area: Source,
+    pub resource: Source,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct TomlCategoryDirs {
+struct RawConfig {
+    folders: Option<RawFolders>,
+    defaults: Option<RawDefaults>,
+    templates: Option<RawTemplates>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct RawFolders {
     inbox: Option<String>,
-    project: Option<String>,
-    area: Option<String>,
-    resource: Option<String>,
+    projects: Option<String>,
+    areas: Option<String>,
+    resources: Option<String>,
     archive: Option<String>,
 }
 
-impl Config {
-    /// Reads `.tick.toml` from `path` if it exists, merging any present
-    /// fields over [`Config::default`]. Returns the default untouched if
-    /// `path` doesn't exist.
-    pub fn load(path: &Path) -> Result<Config, ConfigError> {
-        if !path.exists() {
-            return Ok(Config::default());
-        }
-        let raw = fs::read_to_string(path).map_err(|source| ConfigError::Read {
-            path: path.display().to_string(),
-            source,
-        })?;
-        let parsed: TomlConfig = toml::from_str(&raw).map_err(|source| ConfigError::Parse {
-            path: path.display().to_string(),
-            source,
-        })?;
+#[derive(Debug, Default, Deserialize)]
+struct RawDefaults {
+    extension: Option<String>,
+}
 
-        let mut config = Config::default();
-        if let Some(ext) = parsed.default_extension {
-            config.default_extension = ext;
-        }
-        if let Some(dirs) = parsed.category_dirs {
-            // Order matches `Category as usize` (Inbox, Project, Area, Resource, Archive).
-            let overrides = [
-                dirs.inbox,
-                dirs.project,
-                dirs.area,
-                dirs.resource,
-                dirs.archive,
-            ];
-            for (i, value) in overrides.into_iter().enumerate() {
-                if let Some(value) = value {
-                    config.category_dirs[i] = value;
-                }
-            }
-        }
-        Ok(config)
+#[derive(Debug, Default, Deserialize)]
+struct RawTemplates {
+    note: Option<String>,
+    daily: Option<String>,
+    project: Option<String>,
+    area: Option<String>,
+    resource: Option<String>,
+}
+
+fn read_raw(path: &Path) -> Result<RawConfig, ConfigError> {
+    if !path.exists() {
+        return Ok(RawConfig::default());
+    }
+    let raw = fs::read_to_string(path).map_err(|source| ConfigError::Read {
+        path: path.display().to_string(),
+        source,
+    })?;
+    toml::from_str(&raw).map_err(|source| ConfigError::Parse {
+        path: path.display().to_string(),
+        source,
+    })
+}
+
+/// `local` wins over `user`, which wins over `default`. The `Source`
+/// returned distinguishes "local, but nothing to override" from "local,
+/// overriding a value the user config set" — the two different labels
+/// config.md 001 requires for the same effective value.
+fn merge<T>(default: T, user: Option<T>, local: Option<T>) -> (T, Source) {
+    let source = match (&user, &local) {
+        (_, Some(_)) if user.is_some() => Source::LocalOverridesUser,
+        (_, Some(_)) => Source::Local,
+        (Some(_), None) => Source::User,
+        (None, None) => Source::Default,
+    };
+    let value = local.or(user).unwrap_or(default);
+    (value, source)
+}
+
+impl Config {
+    /// Reads `local_path` and, if given, `home_path`, and layers them over
+    /// `Config::default()` — local takes precedence over user, user over
+    /// the built-in default, independently per key. Neither file needs to
+    /// exist; a missing file behaves as if it set no keys at all.
+    pub fn resolve(
+        local_path: &Path,
+        home_path: Option<&Path>,
+    ) -> Result<(Config, ConfigOrigins), ConfigError> {
+        let local = read_raw(local_path)?;
+        let user = match home_path {
+            Some(p) => read_raw(p)?,
+            None => RawConfig::default(),
+        };
+        let defaults = Config::default();
+
+        let local_folders = local.folders.unwrap_or_default();
+        let user_folders = user.folders.unwrap_or_default();
+        let (inbox, inbox_src) = merge(
+            defaults.category_dirs[0].clone(),
+            user_folders.inbox,
+            local_folders.inbox,
+        );
+        let (projects, projects_src) = merge(
+            defaults.category_dirs[1].clone(),
+            user_folders.projects,
+            local_folders.projects,
+        );
+        let (areas, areas_src) = merge(
+            defaults.category_dirs[2].clone(),
+            user_folders.areas,
+            local_folders.areas,
+        );
+        let (resources, resources_src) = merge(
+            defaults.category_dirs[3].clone(),
+            user_folders.resources,
+            local_folders.resources,
+        );
+        let (archive, archive_src) = merge(
+            defaults.category_dirs[4].clone(),
+            user_folders.archive,
+            local_folders.archive,
+        );
+
+        let (extension, extension_src) = merge(
+            defaults.default_extension.clone(),
+            user.defaults.unwrap_or_default().extension,
+            local.defaults.unwrap_or_default().extension,
+        );
+
+        let local_templates = local.templates.unwrap_or_default();
+        let user_templates = user.templates.unwrap_or_default();
+        let (note, note_src) = merge(
+            defaults.templates.note.clone(),
+            user_templates.note,
+            local_templates.note,
+        );
+        let (daily, daily_src) = merge(
+            defaults.templates.daily.clone(),
+            user_templates.daily,
+            local_templates.daily,
+        );
+        let (project, project_src) = merge(
+            defaults.templates.project.clone(),
+            user_templates.project,
+            local_templates.project,
+        );
+        let (area, area_src) = merge(
+            defaults.templates.area.clone(),
+            user_templates.area,
+            local_templates.area,
+        );
+        let (resource, resource_src) = merge(
+            defaults.templates.resource.clone(),
+            user_templates.resource,
+            local_templates.resource,
+        );
+
+        Ok((
+            Config {
+                category_dirs: [inbox, projects, areas, resources, archive],
+                default_extension: extension,
+                templates: Templates {
+                    note,
+                    daily,
+                    project,
+                    area,
+                    resource,
+                },
+            },
+            ConfigOrigins {
+                category_dirs: [
+                    inbox_src,
+                    projects_src,
+                    areas_src,
+                    resources_src,
+                    archive_src,
+                ],
+                default_extension: extension_src,
+                templates: TemplateOrigins {
+                    note: note_src,
+                    daily: daily_src,
+                    project: project_src,
+                    area: area_src,
+                    resource: resource_src,
+                },
+            },
+        ))
     }
 }
 
@@ -157,21 +308,202 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn missing_file_returns_default() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join(".tick.toml");
+    fn merge_neither_set_yields_default() {
+        let (value, source) = merge("default", None, None);
 
-        let config = Config::load(&path).unwrap();
-
-        assert_eq!(config, Config::default());
+        assert_eq!(value, "default");
+        assert_eq!(source, Source::Default);
     }
 
     #[test]
-    fn present_file_merges_over_default() {
+    fn merge_only_user_set_yields_user() {
+        let (value, source) = merge("default", Some("user"), None);
+
+        assert_eq!(value, "user");
+        assert_eq!(source, Source::User);
+    }
+
+    #[test]
+    fn merge_only_local_set_yields_local() {
+        let (value, source) = merge("default", None, Some("local"));
+
+        assert_eq!(value, "local");
+        assert_eq!(source, Source::Local);
+    }
+
+    #[test]
+    fn merge_both_set_yields_local_overrides_user() {
+        let (value, source) = merge("default", Some("user"), Some("local"));
+
+        assert_eq!(value, "local");
+        assert_eq!(source, Source::LocalOverridesUser);
+    }
+
+    #[test]
+    fn resolve_neither_file_present_returns_default_with_all_default_origins() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join(".tick.toml");
+        let local_path = dir.path().join(".tick.toml");
+
+        let (config, origins) = Config::resolve(&local_path, None).unwrap();
+
+        assert_eq!(config, Config::default());
+        assert!(origins.category_dirs.iter().all(|s| *s == Source::Default));
+        assert_eq!(origins.default_extension, Source::Default);
+        assert_eq!(origins.templates.note, Source::Default);
+        assert_eq!(origins.templates.daily, Source::Default);
+        assert_eq!(origins.templates.project, Source::Default);
+        assert_eq!(origins.templates.area, Source::Default);
+        assert_eq!(origins.templates.resource, Source::Default);
+    }
+
+    #[test]
+    fn resolve_only_local_overrides_one_key() {
+        let dir = tempdir().unwrap();
+        let local_path = dir.path().join(".tick.toml");
         fs::write(
-            &path,
+            &local_path,
+            r#"
+            [folders]
+            inbox = "Inbox"
+            "#,
+        )
+        .unwrap();
+
+        let (config, origins) = Config::resolve(&local_path, None).unwrap();
+
+        assert_eq!(config.category_dirs[0], "Inbox");
+        assert_eq!(origins.category_dirs[0], Source::Local);
+        assert_eq!(origins.category_dirs[1], Source::Default);
+        assert_eq!(origins.default_extension, Source::Default);
+    }
+
+    #[test]
+    fn resolve_only_user_overrides_one_key() {
+        let dir = tempdir().unwrap();
+        let local_path = dir.path().join(".tick.toml");
+        let home_path = dir.path().join("home.tick.toml");
+        fs::write(
+            &home_path,
+            r#"
+            [templates]
+            note = "user note template"
+            "#,
+        )
+        .unwrap();
+
+        let (config, origins) = Config::resolve(&local_path, Some(&home_path)).unwrap();
+
+        assert_eq!(config.templates.note, "user note template");
+        assert_eq!(origins.templates.note, Source::User);
+        assert_eq!(origins.templates.daily, Source::Default);
+        assert_eq!(origins.default_extension, Source::Default);
+    }
+
+    #[test]
+    fn resolve_user_and_local_set_disjoint_keys() {
+        let dir = tempdir().unwrap();
+        let local_path = dir.path().join(".tick.toml");
+        let home_path = dir.path().join("home.tick.toml");
+        fs::write(
+            &local_path,
+            r#"
+            [folders]
+            inbox = "Inbox"
+            "#,
+        )
+        .unwrap();
+        fs::write(
+            &home_path,
+            r#"
+            [templates]
+            daily = "user daily template"
+            "#,
+        )
+        .unwrap();
+
+        let (config, origins) = Config::resolve(&local_path, Some(&home_path)).unwrap();
+
+        assert_eq!(config.category_dirs[0], "Inbox");
+        assert_eq!(origins.category_dirs[0], Source::Local);
+        assert_eq!(config.templates.daily, "user daily template");
+        assert_eq!(origins.templates.daily, Source::User);
+    }
+
+    #[test]
+    fn resolve_user_and_local_set_same_key_local_wins() {
+        let dir = tempdir().unwrap();
+        let local_path = dir.path().join(".tick.toml");
+        let home_path = dir.path().join("home.tick.toml");
+        fs::write(
+            &local_path,
+            r#"
+            [templates]
+            daily = "local daily template"
+            "#,
+        )
+        .unwrap();
+        fs::write(
+            &home_path,
+            r#"
+            [templates]
+            daily = "user daily template"
+            "#,
+        )
+        .unwrap();
+
+        let (config, origins) = Config::resolve(&local_path, Some(&home_path)).unwrap();
+
+        assert_eq!(config.templates.daily, "local daily template");
+        assert_eq!(origins.templates.daily, Source::LocalOverridesUser);
+    }
+
+    #[test]
+    fn resolve_parses_nested_toml_shape_matching_readme() {
+        let dir = tempdir().unwrap();
+        let local_path = dir.path().join(".tick.toml");
+        fs::write(
+            &local_path,
+            r#"
+            [folders]
+            inbox = "Inbox"
+            projects = "Projects"
+            areas = "Areas"
+            resources = "Resources"
+            archive = "Archive"
+
+            [defaults]
+            extension = "txt"
+
+            [templates]
+            note = "note template"
+            daily = "daily template"
+            project = "project template"
+            area = "area template"
+            resource = "resource template"
+            "#,
+        )
+        .unwrap();
+
+        let (config, _origins) = Config::resolve(&local_path, None).unwrap();
+
+        assert_eq!(
+            config.category_dirs,
+            ["Inbox", "Projects", "Areas", "Resources", "Archive"]
+        );
+        assert_eq!(config.default_extension, "txt");
+        assert_eq!(config.templates.note, "note template");
+        assert_eq!(config.templates.daily, "daily template");
+        assert_eq!(config.templates.project, "project template");
+        assert_eq!(config.templates.area, "area template");
+        assert_eq!(config.templates.resource, "resource template");
+    }
+
+    #[test]
+    fn resolve_ignores_legacy_flat_toml_shape() {
+        let dir = tempdir().unwrap();
+        let local_path = dir.path().join(".tick.toml");
+        fs::write(
+            &local_path,
             r#"
             default_extension = "txt"
 
@@ -181,11 +513,11 @@ mod tests {
         )
         .unwrap();
 
-        let config = Config::load(&path).unwrap();
+        let (config, origins) = Config::resolve(&local_path, None).unwrap();
 
-        assert_eq!(config.default_extension, "txt");
-        assert_eq!(config.category_dirs[0], "Inbox");
-        assert_eq!(config.category_dirs[1], "1-Projects");
+        assert_eq!(config, Config::default());
+        assert_eq!(origins.default_extension, Source::Default);
+        assert_eq!(origins.category_dirs[0], Source::Default);
     }
 
     #[test]
@@ -270,7 +602,7 @@ mod tests {
         let path = dir.path().join(".tick.toml");
         fs::write(&path, "").unwrap();
 
-        let config = Config::load(&path).unwrap();
+        let (config, _origins) = Config::resolve(&path, None).unwrap();
 
         assert_eq!(config, Config::default());
     }

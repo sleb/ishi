@@ -1,6 +1,6 @@
 # User Stories: `tk config`
 
-## User Story 001
+## User Story 001 ✅
 
 - **Summary:** See the config Tick is actually using, defaults and all
 - **Depends on:** Story 002 (config layering/resolution this command displays)
@@ -36,7 +36,7 @@
 
 ---
 
-## User Story 002
+## User Story 002 ✅
 
 - **Summary:** Set personal defaults once, then override them per PARA system
 - **Depends on:** None

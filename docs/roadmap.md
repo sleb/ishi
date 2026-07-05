@@ -11,7 +11,7 @@
 | `list`        | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `status`      | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `review`      | Not started (module stub only in `docs/design.md`)                                                                                                                                                                                                                                                                                                                                                                               |
-| `config`      | Partial — `templates` table now covers all five categories, but `Config::load` still reads a single TOML file with no `built-in → ~/.tick.toml → ./.tick.toml` merge, and there's no `config` subcommand                                                                                                                                                                                                                        |
+| `config`      | Layering done — `Config::resolve` merges `built-in → ~/.tick.toml → ./.tick.toml` per key with provenance tracking; still no `config` subcommand                                                                                                                                                                                                                                                                               |
 | `completions` | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ## Dependency graph
@@ -33,7 +33,7 @@ that are docs-only and deliberately _not_ drawn here).
      |               |            |
      v               v            v
  4. list         6. mv      2. config layering
-     |               |          + templates
+     |               |       + templates (done)
      v               |         /            \
  5. status           |        v              v
      |               |    3. daily (done) 8. config CLI
@@ -105,22 +105,26 @@ on any later run.
 
 - Covers user-stories/daily.md 001–003 and new.md story 013.
 
-## Next
-
 ### 2. Config layering
 
-`templates` now has all five fields (`note`/`daily`/`project`/`area`/
-`resource`) rendered through `config::render`, so the template side of
-this item is done — see item 1b above. What's left is the layering
-mechanism itself: `Config::load` still reads a single path with no merge
-step (`Workspace::discover` only knows about bare category dirs, not
-config layering at all).
+Per [docs/lld/005-config-layering.md](lld/005-config-layering.md).
+`Config::resolve(local_path, home_path)` replaces `Config::load`, merging
+`built-in → ~/.tick.toml → ./.tick.toml` per key and returning a parallel
+`ConfigOrigins` recording which layer each effective value came from
+(`Source::{Default,User,Local,LocalOverridesUser}`). Along the way, the
+TOML schema `Config` parses was fixed to match the nested `[folders]` /
+`[defaults]` / `[templates]` tables `README.md` documents (the old flat
+`default_extension` / `category_dirs.*` shape is no longer read).
+`Workspace::discover` takes a new `home_config: Option<&Path>` parameter,
+layering it in on both of its branches; `main.rs` computes the home config
+path from `$HOME` once and passes it through. `ConfigOrigins` isn't
+consumed anywhere yet — only the future `tk config` display path (item 8)
+will read it.
 
-- Implement the `built-in → ~/.tick.toml → ./.tick.toml` merge.
-- **Why here:** `config` (item 8) needs the same layering logic to report
-  provenance.
 - Covers the config-resolution scenarios in user-stories/config.md 001–002
-  (not yet the `tk config` CLI surface — that's item 8).
+  (not yet the `tk config` CLI surface — that's item 8, now unblocked).
+
+## Next
 
 ### 4. `tk list`
 

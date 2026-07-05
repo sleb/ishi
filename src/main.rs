@@ -1,4 +1,5 @@
 use std::env;
+use std::path::PathBuf;
 
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
@@ -78,6 +79,7 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     let cwd = env::current_dir().context("failed to determine current directory")?;
+    let home_config = env::var_os("HOME").map(|home| PathBuf::from(home).join(".tick.toml"));
 
     match cli.command {
         Commands::Init { name } => {
@@ -85,18 +87,21 @@ fn main() -> anyhow::Result<()> {
             println!("{message}");
         }
         Commands::Daily => {
-            let ws = Workspace::discover(&cwd).context("failed to find a PARA workspace")?;
+            let ws = Workspace::discover(&cwd, home_config.as_deref())
+                .context("failed to find a PARA workspace")?;
             run_daily_command(&ws)?;
         }
         Commands::New {
             filename: _,
             category,
         } if category.into_kind() == Kind::Daily => {
-            let ws = Workspace::discover(&cwd).context("failed to find a PARA workspace")?;
+            let ws = Workspace::discover(&cwd, home_config.as_deref())
+                .context("failed to find a PARA workspace")?;
             run_daily_command(&ws)?;
         }
         Commands::New { filename, category } => {
-            let ws = Workspace::discover(&cwd).context("failed to find a PARA workspace")?;
+            let ws = Workspace::discover(&cwd, home_config.as_deref())
+                .context("failed to find a PARA workspace")?;
             if filename.is_none() {
                 println!("Opening $EDITOR...");
             }

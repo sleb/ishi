@@ -62,12 +62,13 @@ pub fn init(target: &Path) -> Result<InitReport, WorkspaceError> {
 impl Workspace {
     /// Walks up from `start` through ancestors, stopping at the first
     /// directory containing `.tick.toml` or all five default-named
-    /// category directories.
-    pub fn discover(start: &Path) -> Result<Workspace, WorkspaceError> {
+    /// category directories. `home_config`, if given, is layered in as the
+    /// user-level config on both branches.
+    pub fn discover(start: &Path, home_config: Option<&Path>) -> Result<Workspace, WorkspaceError> {
         for dir in start.ancestors() {
             let tick_toml = dir.join(".tick.toml");
             if tick_toml.exists() {
-                let config = Config::load(&tick_toml)?;
+                let (config, _origins) = Config::resolve(&tick_toml, home_config)?;
                 return Ok(Workspace {
                     root: dir.to_path_buf(),
                     config,
@@ -80,9 +81,10 @@ impl Workspace {
                 .iter()
                 .all(|name| dir.join(name).is_dir())
             {
+                let (config, _origins) = Config::resolve(&dir.join(".tick.toml"), home_config)?;
                 return Ok(Workspace {
                     root: dir.to_path_buf(),
-                    config: default_config,
+                    config,
                 });
             }
         }
@@ -117,7 +119,7 @@ mod tests {
         let nested = dir.path().join("a/b");
         fs::create_dir_all(&nested).unwrap();
 
-        let ws = Workspace::discover(&nested).unwrap();
+        let ws = Workspace::discover(&nested, None).unwrap();
 
         assert_eq!(ws.root, dir.path());
     }
@@ -129,7 +131,7 @@ mod tests {
         let nested = dir.path().join("a/b");
         fs::create_dir_all(&nested).unwrap();
 
-        let ws = Workspace::discover(&nested).unwrap();
+        let ws = Workspace::discover(&nested, None).unwrap();
 
         assert_eq!(ws.root, dir.path());
     }
@@ -138,9 +140,55 @@ mod tests {
     fn returns_not_found_outside_any_workspace() {
         let dir = tempdir().unwrap();
 
-        let result = Workspace::discover(dir.path());
+        let result = Workspace::discover(dir.path(), None);
 
         assert!(matches!(result, Err(WorkspaceError::NotFound { .. })));
+    }
+
+    #[test]
+    fn discover_layers_user_config_when_no_local_file_present() {
+        let dir = tempdir().unwrap();
+        create_category_dirs(dir.path());
+        let home_config = dir.path().join("home.tick.toml");
+        fs::write(
+            &home_config,
+            r#"
+            [templates]
+            note = "user note template"
+            "#,
+        )
+        .unwrap();
+
+        let ws = Workspace::discover(dir.path(), Some(&home_config)).unwrap();
+
+        assert_eq!(ws.config.templates.note, "user note template");
+    }
+
+    #[test]
+    fn discover_layers_both_user_and_local_config() {
+        let dir = tempdir().unwrap();
+        fs::write(
+            dir.path().join(".tick.toml"),
+            r#"
+            [folders]
+            archive = "Archive"
+            "#,
+        )
+        .unwrap();
+        let home_config = dir.path().join("home.tick.toml");
+        fs::write(
+            &home_config,
+            r#"
+            [templates]
+            daily = "user daily template"
+            "#,
+        )
+        .unwrap();
+
+        let ws = Workspace::discover(dir.path(), Some(&home_config)).unwrap();
+
+        assert_eq!(ws.config.category_dirs[4], "Archive");
+        assert_eq!(ws.config.templates.daily, "user daily template");
     }
 
     #[test]

@@ -99,7 +99,8 @@ be).
 
 ### `config`
 
-Parses `.tick.toml`. Pure data, one file read.
+Parses `.tick.toml` and layers it across three sources — built-in defaults,
+`~/.tick.toml` (user), `./.tick.toml` (local) — per key.
 
 - `struct Config { category_dirs: [String; 5], default_extension: String, templates: Templates }`
   — `category_dirs` is indexed by `Category as usize`, so `Category`'s
@@ -116,8 +117,20 @@ Parses `.tick.toml`. Pure data, one file read.
   (there's no `Kind::Archive` to be missing a template for).
 - `Config::default() -> Config` — `0-Inbox`, `1-Projects`, `2-Areas`,
   `3-Resources`, `4-Archive`, `md`, and the default `note` template.
-- `Config::load(path: &Path) -> Result<Config>` — reads `.tick.toml` if present,
-  falls back to defaults for any field it omits.
+- `enum Source { Default, User, Local, LocalOverridesUser }` — which layer an
+  effective value came from; `Source::comment(self) -> &'static str` gives
+  the exact annotation `tk config` will print (`default`/`user`/`local`/
+  `local, overrides user`).
+- `struct ConfigOrigins { category_dirs: [Source; 5], default_extension: Source, templates: TemplateOrigins }`
+  and `struct TemplateOrigins { note: Source, daily: Source, project: Source, area: Source, resource: Source }`
+  — same shape as `Config`/`Templates`, parallel and provenance-only; no
+  consumer besides the future `tk config` display path reads these.
+- `Config::resolve(local_path: &Path, home_path: Option<&Path>) -> Result<(Config, ConfigOrigins)>`
+  — reads `local_path` and, if given, `home_path`, and layers them over
+  `Config::default()` independently per key (local wins over user, user
+  wins over the built-in default). Neither file needs to exist; a missing
+  file behaves as if it set no keys at all. Replaces the old single-file
+  `Config::load`.
 - `render(template: &str, title: &str, date: &str, time: &str, uuid: &str) -> String`
   — fills in `{{date}}`, `{{title}}`, `{{time}}`, and `{{uuid}}`, leaving
   `{{cursor}}` untouched (that marker is `Editor`'s job — see below). All
@@ -133,8 +146,13 @@ Parses `.tick.toml`. Pure data, one file read.
 Answers "where do things live?" for every other component.
 
 - `struct Workspace { root: PathBuf, config: Config }`
-- `Workspace::discover(start: &Path) -> Result<Workspace>` — walks up from
-  `start` looking for `.tick.toml` or the five category dirs.
+- `Workspace::discover(start: &Path, home_config: Option<&Path>) -> Result<Workspace>`
+  — walks up from `start` looking for `.tick.toml` or the five category
+  dirs, layering `home_config` in via `Config::resolve` on whichever branch
+  matches (so a user-level config still applies even when there's no local
+  `.tick.toml` to discover by). `ConfigOrigins` is discarded here — nothing
+  under `workspace` needs provenance, only the future `tk config` display
+  path does, and that path calls `Config::resolve` directly.
 - `Workspace::category_dir(&self, category: Category) -> PathBuf`
 - `struct InitReport { created: Vec<String> }` — names (in
   `Config::default().category_dirs` order) of the category dirs `init`
