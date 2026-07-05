@@ -17,12 +17,12 @@ so it can be tested without a real shell, editor, or terminal.
      ▼           ▼           ▼
  ┌───────┐  ┌─────────┐  ┌────────┐
  │ items │  │ review  │  │ editor │
- └───┬───┘  └────┬────┘  └────────┘
-     │           │
-     ▼           ▼
- ┌──────────────────────┐
- │      workspace       │  resolves PARA root + category paths
- └──────────┬───────────┘
+ └───┬───┘  └────┬────┘  └───┬────┘
+     │           │           │
+     ▼           ▼           ▼
+ ┌──────────────────────┐  ┌──────┐
+ │      workspace       │  │ gist │  external crate: Markdown/frontmatter
+ └──────────┬───────────┘  └──────┘  parsing (see `gist` below)
             ▼
        ┌─────────┐
        │ config  │  .tick.toml (folder names, default extension)
@@ -193,6 +193,35 @@ Answers "where do things live?" for every other component.
   are discoverable later via `Workspace::discover`'s bare-category-dirs
   fallback.
 
+### `gist`
+
+An external crate ([sleb/gist](https://github.com/sleb/gist)), not a tick
+module — pinned in `Cargo.toml` (`gist = { git = "...", tag = "v0.1.0" }`).
+Parses a single note's Markdown/frontmatter (headings, tags, links, code
+fences) with no filesystem access of its own; tick calls it with content
+already read from disk. `items` and `editor` are the only tick modules that
+use it, each independently — `gist` replaces what used to be two
+independent hand-rolled implementations of "skip frontmatter, then find the
+first heading" (one in `items::infer_title`, one in
+`editor::suggest_filename`), so the module boundary that kept `items` and
+`editor` from depending on each other is preserved by having both depend on
+`gist` instead of on each other.
+
+- `parser::first_heading_text(content: &str) -> Option<String>` — skips a
+  leading YAML frontmatter block if present, then returns the first
+  Markdown heading line's text (any `#` level) with non-blank text after
+  the marker, or `None` if none is found. This is the function `items` and
+  `editor` both call.
+- `parser::frontmatter_body_offset(content: &str) -> usize` — the byte
+  offset where the document body starts (`0` if there's no frontmatter
+  block). `editor::suggest_filename` uses this to locate its
+  first-non-blank-line fallback in the post-frontmatter body.
+- `parser::parse`, `parser::extract_frontmatter`, `index::build`, and the
+  rest of `gist`'s backlink/tag/link-resolution surface are not currently
+  used by tick — `gist` was originally built for a different note-vault
+  tool, and only its title-inference primitives overlap with tick's needs
+  today.
+
 ### `items`
 
 All filesystem operations. Takes a `Workspace` and `Category`, returns
@@ -224,15 +253,16 @@ structured results — no printing, no prompting.
 - `list(ws: &Workspace, category: Category, filter: Option<&str>) -> Result<Vec<ListedItem>>`
   — rows sorted alphabetically by `name`; `filter`, if given, is matched as a
   case-insensitive substring against `name` or `title`.
-- `infer_title(content: &str) -> Option<String>` — skips a leading YAML
+- `infer_title(content: &str) -> Option<String>` — a thin wrapper over
+  [`gist`](#gist)'s `parser::first_heading_text`: skips a leading YAML
   frontmatter block if present, then returns the first Markdown heading
   line's text (any `#` level), or `None` if none is found. A heading line
   with empty text after the marker doesn't count as found; the search
-  continues to any heading further down. Conceptually the same
-  frontmatter-skip-then-find-heading logic as `editor::suggest_filename`
-  (which then slugifies the heading into a filename), implemented
-  independently in `items` — `items` and `editor` still don't depend on
-  each other, per the module boundaries below.
+  continues to any heading further down. `editor::suggest_filename` calls
+  the same `gist` function for its heading-detection step (then slugifies
+  the result into a filename) — `items` and `editor` share `gist` as a
+  common dependency rather than depending on each other, per the module
+  boundaries below.
 - `struct StatusItem { name: String, title: String, updated_days_ago: u64, reviewed_days_ago: Option<u64> }`
   — one per `Project`/`Area`; `name`/`title`/`updated_days_ago` mirror
   `ListedItem` (same `infer_title` + mtime sourcing); `reviewed_days_ago` is
@@ -271,17 +301,18 @@ editor process or racing the system clock.
     an existing file at `path`, no scratch file, no seed, no filename
     inference. Used only by `cli::run_daily`'s reopen-existing-note path,
     where the content is already final and there's nothing to infer.
-- `suggest_filename(content: &str) -> String` — pure. Skips a leading YAML
-  frontmatter block if present, then looks for the first Markdown heading
-  line (any `#` level) with non-blank text after the marker in the
-  remainder and slugifies it; a heading line whose text is empty (e.g. a
-  pre-populated `# {{cursor}}` title left untouched) doesn't count as
-  found — the search continues past it, including to headings further
-  down the file. If no such heading is found, falls back to the first
-  non-blank line after the frontmatter; if that's also absent (or the only
-  candidate was the blank heading with no other content), falls back to a
-  timestamp-based name. Internally delegates to a `SystemTime`-parameterized
-  helper so the timestamp fallback is deterministic in tests.
+- `suggest_filename(content: &str) -> String` — pure. Calls
+  [`gist`](#gist)'s `parser::first_heading_text` (frontmatter-skip then
+  first-non-blank-heading, same semantics as `items::infer_title` above)
+  and slugifies the result if found. If no such heading is found, falls
+  back to the first non-blank line after the frontmatter (using `gist`'s
+  `parser::frontmatter_body_offset` to locate where the body starts); if
+  that's also absent (or the only candidate was a blank heading with no
+  other content), falls back to a timestamp-based name. These two
+  fallbacks are tick-specific — `gist` only surfaces the heading, not a
+  filename — so `suggest_filename` still owns them. Internally delegates
+  to a `SystemTime`-parameterized helper so the timestamp fallback is
+  deterministic in tests.
 
 ### `review`
 
@@ -374,8 +405,8 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
 - `category` and `config` have no dependencies on anything else — they're the
   vocabulary and settings every other module shares.
 - `workspace` depends only on `config` + `category`.
-- `items` and `editor` depend only on `workspace` — they don't know about each
-  other or about `cli`.
+- `items` and `editor` depend only on `workspace` and the external `gist`
+  crate — they don't know about each other or about `cli`.
 - `review` composes `items` with a `Ui`, but doesn't know about `clap` or argv.
 - `cli` is the only place that does terminal I/O; every other module returns
   data or `Result`s so it can be unit-tested directly.
