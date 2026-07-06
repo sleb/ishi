@@ -1,8 +1,9 @@
 use std::env;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 
 use tick::category::{Category, Kind};
 use tick::cli::{self, TerminalUi};
@@ -35,6 +36,39 @@ enum Commands {
     },
     /// List items in a category.
     List { category: ListCategory },
+    /// Print a shell completion script for `tk` to stdout.
+    Completions { shell: CompletionShell },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, clap::ValueEnum)]
+enum CompletionShell {
+    Bash,
+    Zsh,
+    Fish,
+    Powershell,
+}
+
+impl From<CompletionShell> for clap_complete::Shell {
+    fn from(shell: CompletionShell) -> Self {
+        match shell {
+            CompletionShell::Bash => clap_complete::Shell::Bash,
+            CompletionShell::Zsh => clap_complete::Shell::Zsh,
+            CompletionShell::Fish => clap_complete::Shell::Fish,
+            CompletionShell::Powershell => clap_complete::Shell::PowerShell,
+        }
+    }
+}
+
+/// Renders `shell`'s completion script for the `tk` CLI into a byte buffer.
+fn render_completions(shell: CompletionShell) -> Vec<u8> {
+    let mut buf = Vec::new();
+    clap_complete::generate(
+        clap_complete::Shell::from(shell),
+        &mut Cli::command(),
+        "tk",
+        &mut buf,
+    );
+    buf
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, clap::ValueEnum)]
@@ -188,6 +222,9 @@ fn main() -> anyhow::Result<()> {
                 .context("failed to find a PARA workspace")?;
             let output = cli::run_list(&ws, category.into())?;
             println!("{output}");
+        }
+        Commands::Completions { shell } => {
+            io::stdout().write_all(&render_completions(shell))?;
         }
     }
 
@@ -495,5 +532,92 @@ mod tests {
                 category: ListCategory::Inbox
             }
         );
+    }
+
+    #[test]
+    fn parses_completions_bash() {
+        let cli = Cli::parse_from(["tk", "completions", "bash"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Completions {
+                shell: CompletionShell::Bash
+            }
+        );
+    }
+
+    #[test]
+    fn parses_completions_zsh() {
+        let cli = Cli::parse_from(["tk", "completions", "zsh"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Completions {
+                shell: CompletionShell::Zsh
+            }
+        );
+    }
+
+    #[test]
+    fn parses_completions_fish() {
+        let cli = Cli::parse_from(["tk", "completions", "fish"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Completions {
+                shell: CompletionShell::Fish
+            }
+        );
+    }
+
+    #[test]
+    fn parses_completions_powershell() {
+        let cli = Cli::parse_from(["tk", "completions", "powershell"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Completions {
+                shell: CompletionShell::Powershell
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_unsupported_completions_shell() {
+        let result = Cli::try_parse_from(["tk", "completions", "tcsh"]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_missing_completions_shell() {
+        let result = Cli::try_parse_from(["tk", "completions"]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn renders_non_empty_completions_for_every_shell() {
+        for shell in [
+            CompletionShell::Bash,
+            CompletionShell::Zsh,
+            CompletionShell::Fish,
+            CompletionShell::Powershell,
+        ] {
+            assert!(!render_completions(shell).is_empty());
+        }
+    }
+
+    #[test]
+    fn completions_cover_every_top_level_command() {
+        let script = render_completions(CompletionShell::Bash);
+        let script = String::from_utf8(script).unwrap();
+
+        for command in ["init", "new", "daily", "list", "config", "completions"] {
+            assert!(
+                script.contains(command),
+                "expected script to contain {command}"
+            );
+        }
     }
 }

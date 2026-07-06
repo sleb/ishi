@@ -410,3 +410,8 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
 - `review` composes `items` with a `Ui`, but doesn't know about `clap` or argv.
 - `cli` is the only place that does terminal I/O; every other module returns
   data or `Result`s so it can be unit-tested directly.
+- `NewCategory`, `ListCategory`, `config_target`, `CompletionShell`, and
+  `render_completions` are `main`-only argv-parsing plumbing with no
+  business logic of their own, so they get no `cli`/`design.md` writeup
+  beyond this line — see `docs/lld/008-completions.md`'s `main` section for
+  `CompletionShell`/`render_completions`.

@@ -1,6 +1,6 @@
 # User Stories: `tk completions`
 
-## User Story 001
+## User Story 001 ✅
 
 - **Summary:** Get shell completions for `tk` without writing them by hand
 - **Depends on:** None
@@ -36,7 +36,7 @@
 
 ---
 
-## User Story 002
+## User Story 002 ✅
 
 - **Summary:** Get a clear error instead of a broken script for an unsupported shell
 - **Depends on:** Story 001 (the generation flow this validates input for)
@@ -62,7 +62,7 @@
 
 ---
 
-## User Story 003
+## User Story 003 ✅
 
 - **Summary:** Stay current with `tk`'s commands as they change
 - **Depends on:** Story 001 (script generation), [init.md](init.md) Story 001, [new.md](new.md) Story 002, [daily.md](daily.md) Story 001, [mv.md](mv.md) Story 001, [list.md](list.md) Story 001, [status.md](status.md) Story 001, [review.md](review.md) Story 001, [config.md](config.md) Story 001 (every top-level command the script must cover)
