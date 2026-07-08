@@ -185,10 +185,9 @@ fn format_age(days: u64) -> String {
 /// Renders `items::list`'s rows as the `NAME`/`TITLE`/`UPDATED` table:
 /// header first, then one row per item, each column left-justified to
 /// `3 +` the longest value in that column (including its header) so
-/// columns line up regardless of content width. When `filter` was given and
-/// nothing matches, returns a no-match message instead of a header-only
-/// table; an empty result with no filter still renders the header-only
-/// table.
+/// columns line up regardless of content width. When there are no items,
+/// returns a message instead of a header-only table: a no-match message if
+/// `filter` was given, or a plain empty-category message otherwise.
 pub fn run_list(
     ws: &Workspace,
     category: Category,
@@ -196,13 +195,11 @@ pub fn run_list(
 ) -> anyhow::Result<String> {
     let items = items::list(ws, category, filter)?;
 
-    if items.is_empty()
-        && let Some(f) = filter
-    {
-        return Ok(format!(
-            "No items in {} matching \"{f}\".",
-            category.display_name()
-        ));
+    if items.is_empty() {
+        return Ok(match filter {
+            Some(f) => format!("No items in {} matching \"{f}\".", category.display_name()),
+            None => format!("No items in {}.", category.display_name()),
+        });
     }
 
     let ages: Vec<String> = items
@@ -1224,6 +1221,16 @@ mod tests {
             lines[2],
             "Resources/api-notes-v1   API Notes v1   180 days ago"
         );
+    }
+
+    #[test]
+    fn run_list_renders_empty_message_when_category_has_no_items_and_no_filter() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let output = run_list(&ws, Category::Resource, None).unwrap();
+
+        assert_eq!(output, "No items in Resources.");
     }
 
     #[test]

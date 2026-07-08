@@ -136,7 +136,7 @@ unlike sorting by Updated.
 
 ---
 
-## User Story 004
+## User Story 004 ✅
 
 - **Summary:** Listing an empty category prints a friendly message instead of nothing
 - **Depends on:** Story 001 (base column format), Story 003 (empty-result message for a filter, extended here to no filter)
