@@ -1181,4 +1181,32 @@ mod tests {
         assert_eq!(lines[0], "NAME     TITLE    UPDATED");
         assert_eq!(lines[1], "health   Health   today");
     }
+
+    #[test]
+    fn run_list_renders_archive_category_with_qualified_names() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let project_index = dir.path().join("4-Archive/Projects/old-project/index.md");
+        fs::create_dir_all(project_index.parent().unwrap()).unwrap();
+        fs::write(&project_index, "# Old Project\n").unwrap();
+        backdate(&project_index, 120);
+
+        let resource_path = dir.path().join("4-Archive/Resources/api-notes-v1.md");
+        fs::create_dir_all(resource_path.parent().unwrap()).unwrap();
+        fs::write(&resource_path, "# API Notes v1\n").unwrap();
+        backdate(&resource_path, 180);
+
+        let output = run_list(&ws, Category::Archive).unwrap();
+
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(
+            lines[1],
+            "Projects/old-project     Old Project    120 days ago"
+        );
+        assert_eq!(
+            lines[2],
+            "Resources/api-notes-v1   API Notes v1   180 days ago"
+        );
+    }
 }

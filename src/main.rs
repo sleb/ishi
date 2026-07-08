@@ -77,6 +77,7 @@ enum ListCategory {
     Area,
     Resource,
     Inbox,
+    Archive,
 }
 
 impl From<ListCategory> for Category {
@@ -86,6 +87,7 @@ impl From<ListCategory> for Category {
             ListCategory::Area => Category::Area,
             ListCategory::Resource => Category::Resource,
             ListCategory::Inbox => Category::Inbox,
+            ListCategory::Archive => Category::Archive,
         }
     }
 }
@@ -530,6 +532,18 @@ mod tests {
             cli.command,
             Commands::List {
                 category: ListCategory::Inbox
+            }
+        );
+    }
+
+    #[test]
+    fn parses_list_archive() {
+        let cli = Cli::parse_from(["tk", "list", "archive"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::List {
+                category: ListCategory::Archive
             }
         );
     }

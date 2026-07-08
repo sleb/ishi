@@ -15,6 +15,30 @@ impl Category {
     pub fn is_directory_style(&self) -> bool {
         matches!(self, Category::Project | Category::Area)
     }
+
+    /// The fixed subfolder name under `Archive` an item of this category is
+    /// filed under when archived, e.g. `Category::Project` -> `"Projects"`.
+    /// Never called with `Category::Archive` itself.
+    pub fn archive_origin_name(&self) -> &'static str {
+        match self {
+            Category::Inbox => "Inbox",
+            Category::Project => "Projects",
+            Category::Area => "Areas",
+            Category::Resource => "Resources",
+            Category::Archive => unreachable!("Archive has no archive origin subfolder"),
+        }
+    }
+
+    /// The four categories an item can be archived from — every variant
+    /// except `Archive`.
+    pub fn archivable() -> [Category; 4] {
+        [
+            Category::Inbox,
+            Category::Project,
+            Category::Area,
+            Category::Resource,
+        ]
+    }
 }
 
 /// What `tk new`/`tk daily` create — a different vocabulary from
@@ -57,6 +81,27 @@ mod tests {
         assert!(!Category::Inbox.is_directory_style());
         assert!(!Category::Resource.is_directory_style());
         assert!(!Category::Archive.is_directory_style());
+    }
+
+    #[test]
+    fn archive_origin_name_maps_each_archivable_category() {
+        assert_eq!(Category::Inbox.archive_origin_name(), "Inbox");
+        assert_eq!(Category::Project.archive_origin_name(), "Projects");
+        assert_eq!(Category::Area.archive_origin_name(), "Areas");
+        assert_eq!(Category::Resource.archive_origin_name(), "Resources");
+    }
+
+    #[test]
+    fn archivable_excludes_archive() {
+        assert_eq!(
+            Category::archivable(),
+            [
+                Category::Inbox,
+                Category::Project,
+                Category::Area,
+                Category::Resource
+            ]
+        );
     }
 
     #[test]

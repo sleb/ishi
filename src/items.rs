@@ -78,24 +78,27 @@ pub fn list(ws: &Workspace, category: Category) -> Result<Vec<ListedItem>, Items
     list_at(ws, category, SystemTime::now())
 }
 
-fn list_at(
-    ws: &Workspace,
-    category: Category,
-    now: SystemTime,
-) -> Result<Vec<ListedItem>, ItemsError> {
-    let category_dir = ws.category_dir(category);
-    let entries = match fs::read_dir(&category_dir) {
+/// Scans `dir`'s immediate children as either directory-style entries
+/// (subdirectories, source path `<entry>/index.<extension>`) or flat-file
+/// entries (files, source path the file itself, name = file stem).
+/// Returns `Ok(vec![])` if `dir` doesn't exist yet, rather than erroring.
+fn scan_dir(
+    dir: &std::path::Path,
+    directory_style: bool,
+    extension: &str,
+) -> Result<Vec<(String, PathBuf)>, ItemsError> {
+    let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(vec![]),
         Err(e) => return Err(e.into()),
     };
 
-    let mut items = Vec::new();
+    let mut results = Vec::new();
     for entry in entries {
         let entry = entry?;
         let path = entry.path();
 
-        let (name, source_path) = if category.is_directory_style() {
+        let (name, source_path) = if directory_style {
             if !path.is_dir() {
                 continue;
             }
@@ -104,7 +107,7 @@ fn list_at(
                 .expect("directory entry has a file name")
                 .to_string_lossy()
                 .into_owned();
-            let index = path.join(format!("index.{}", ws.config.default_extension));
+            let index = path.join(format!("index.{extension}"));
             (name, index)
         } else {
             if !path.is_file() {
@@ -118,16 +121,57 @@ fn list_at(
             (name, path.clone())
         };
 
-        let content = fs::read_to_string(&source_path)?;
-        let title = infer_title(&content).unwrap_or_else(|| name.clone());
-        let modified = fs::metadata(&source_path)?.modified()?;
-        let updated_days_ago = now.duration_since(modified).unwrap_or_default().as_secs() / 86400;
+        results.push((name, source_path));
+    }
 
-        items.push(ListedItem {
-            name,
-            title,
-            updated_days_ago,
-        });
+    Ok(results)
+}
+
+/// Reads `source_path`'s content/mtime and builds the `ListedItem` for
+/// `name` (title inferred, falling back to `name`; age relative to `now`).
+fn build_listed_item(
+    name: String,
+    source_path: &std::path::Path,
+    now: SystemTime,
+) -> Result<ListedItem, ItemsError> {
+    let content = fs::read_to_string(source_path)?;
+    let title = infer_title(&content).unwrap_or_else(|| name.clone());
+    let modified = fs::metadata(source_path)?.modified()?;
+    let updated_days_ago = now.duration_since(modified).unwrap_or_default().as_secs() / 86400;
+
+    Ok(ListedItem {
+        name,
+        title,
+        updated_days_ago,
+    })
+}
+
+fn list_at(
+    ws: &Workspace,
+    category: Category,
+    now: SystemTime,
+) -> Result<Vec<ListedItem>, ItemsError> {
+    let extension = &ws.config.default_extension;
+    let mut items = Vec::new();
+
+    if category == Category::Archive {
+        let archive_dir = ws.category_dir(Category::Archive);
+        for origin in Category::archivable() {
+            let origin_dir = archive_dir.join(origin.archive_origin_name());
+            for (name, source_path) in
+                scan_dir(&origin_dir, origin.is_directory_style(), extension)?
+            {
+                let qualified = format!("{}/{name}", origin.archive_origin_name());
+                items.push(build_listed_item(qualified, &source_path, now)?);
+            }
+        }
+    } else {
+        let category_dir = ws.category_dir(category);
+        for (name, source_path) in
+            scan_dir(&category_dir, category.is_directory_style(), extension)?
+        {
+            items.push(build_listed_item(name, &source_path, now)?);
+        }
     }
 
     items.sort_by(|a, b| a.name.cmp(&b.name));
@@ -290,6 +334,60 @@ mod tests {
         let items = list_at(&ws, Category::Area, fixed_now()).unwrap();
 
         assert!(items.is_empty());
+    }
+
+    #[test]
+    fn list_at_archive_qualifies_name_with_origin_category() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        let project_index = dir.path().join("4-Archive/Projects/old-project/index.md");
+        fs::create_dir_all(project_index.parent().unwrap()).unwrap();
+        fs::write(&project_index, "# Old Project\n").unwrap();
+        set_mtime(&project_index, 120, now);
+
+        let resource_path = dir.path().join("4-Archive/Resources/api-notes-v1.md");
+        fs::create_dir_all(resource_path.parent().unwrap()).unwrap();
+        fs::write(&resource_path, "# API Notes v1\n").unwrap();
+        set_mtime(&resource_path, 180, now);
+
+        let items = list_at(&ws, Category::Archive, now).unwrap();
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].name, "Projects/old-project");
+        assert_eq!(items[0].title, "Old Project");
+        assert_eq!(items[0].updated_days_ago, 120);
+        assert_eq!(items[1].name, "Resources/api-notes-v1");
+        assert_eq!(items[1].title, "API Notes v1");
+        assert_eq!(items[1].updated_days_ago, 180);
+    }
+
+    #[test]
+    fn list_at_archive_missing_dir_returns_empty() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let items = list_at(&ws, Category::Archive, fixed_now()).unwrap();
+
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn list_at_archive_missing_origin_subfolder_is_skipped() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        let project_index = dir.path().join("4-Archive/Projects/old-project/index.md");
+        fs::create_dir_all(project_index.parent().unwrap()).unwrap();
+        fs::write(&project_index, "# Old Project\n").unwrap();
+        set_mtime(&project_index, 10, now);
+
+        let items = list_at(&ws, Category::Archive, now).unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "Projects/old-project");
     }
 
     #[test]

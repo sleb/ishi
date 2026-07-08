@@ -46,6 +46,14 @@ see "Filing vocabulary vs. creation vocabulary" below for why.
 - `Category::is_directory_style() -> bool` — true for `Project`/`Area` (scaffolded
   dir + `index.md`), false for `Inbox`/`Resource` (flat file). `Archive` defers to
   the origin category it's preserving.
+- `Category::archive_origin_name(&self) -> &'static str` — the fixed subfolder
+  name under `Archive` an item of this category is filed under when archived
+  (e.g. `Project` -> `"Projects"`); never called with `Archive` itself. A
+  separate fixed vocabulary from `Config::category_dirs` — origin subfolders
+  aren't user-configurable independently of the top-level Archive folder name.
+  `Category::archivable() -> [Category; 4]` is the four categories an item can
+  be archived from (every variant except `Archive`), used to iterate origin
+  subfolders in `items::list`/`mv`.
 - `enum Kind { Inbox, Project, Area, Resource, Daily }` — **what `new`/`daily`
   create.** Consumed only by the creation path: `cli::run_new`'s dispatch
   and `Templates::for_kind`.

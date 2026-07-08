@@ -76,7 +76,7 @@ unlike sorting by Updated.
 
 ---
 
-## User Story 002
+## User Story 002 ✅
 
 - **Summary:** Archived items show which category they came from, since names can collide across origins
 - **Depends on:** Story 001 (base column format)
