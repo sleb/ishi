@@ -74,8 +74,12 @@ pub fn infer_title(content: &str) -> Option<String> {
 /// file stem. Rows are sorted alphabetically by name. Returns `Ok(vec![])`
 /// if `category`'s directory doesn't exist yet, rather than erroring — an
 /// empty/not-yet-created category is a normal state, not a fault.
-pub fn list(ws: &Workspace, category: Category) -> Result<Vec<ListedItem>, ItemsError> {
-    list_at(ws, category, SystemTime::now())
+pub fn list(
+    ws: &Workspace,
+    category: Category,
+    filter: Option<&str>,
+) -> Result<Vec<ListedItem>, ItemsError> {
+    list_at(ws, category, filter, SystemTime::now())
 }
 
 /// Scans `dir`'s immediate children as either directory-style entries
@@ -146,9 +150,22 @@ fn build_listed_item(
     })
 }
 
+/// True if `filter` is absent, or a case-insensitive substring of `item`'s
+/// name or title.
+fn matches_filter(item: &ListedItem, filter: Option<&str>) -> bool {
+    match filter {
+        None => true,
+        Some(f) => {
+            let f = f.to_lowercase();
+            item.name.to_lowercase().contains(&f) || item.title.to_lowercase().contains(&f)
+        }
+    }
+}
+
 fn list_at(
     ws: &Workspace,
     category: Category,
+    filter: Option<&str>,
     now: SystemTime,
 ) -> Result<Vec<ListedItem>, ItemsError> {
     let extension = &ws.config.default_extension;
@@ -162,7 +179,10 @@ fn list_at(
                 scan_dir(&origin_dir, origin.is_directory_style(), extension)?
             {
                 let qualified = format!("{}/{name}", origin.archive_origin_name());
-                items.push(build_listed_item(qualified, &source_path, now)?);
+                let item = build_listed_item(qualified, &source_path, now)?;
+                if matches_filter(&item, filter) {
+                    items.push(item);
+                }
             }
         }
     } else {
@@ -170,7 +190,10 @@ fn list_at(
         for (name, source_path) in
             scan_dir(&category_dir, category.is_directory_style(), extension)?
         {
-            items.push(build_listed_item(name, &source_path, now)?);
+            let item = build_listed_item(name, &source_path, now)?;
+            if matches_filter(&item, filter) {
+                items.push(item);
+            }
         }
     }
 
@@ -283,7 +306,7 @@ mod tests {
         let path2 = create(&ws, Category::Project, "my-project", "# My Project\n").unwrap();
         set_mtime(&path2, 21, now);
 
-        let items = list_at(&ws, Category::Project, now).unwrap();
+        let items = list_at(&ws, Category::Project, None, now).unwrap();
 
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].name, "my-project");
@@ -303,7 +326,7 @@ mod tests {
         let path = create(&ws, Category::Resource, "api-notes", "# API Design Notes\n").unwrap();
         set_mtime(&path, 5, now);
 
-        let items = list_at(&ws, Category::Resource, now).unwrap();
+        let items = list_at(&ws, Category::Resource, None, now).unwrap();
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "api-notes");
@@ -320,7 +343,7 @@ mod tests {
         create(&ws, Category::Project, "website-redesign", "").unwrap();
         create(&ws, Category::Project, "my-project", "").unwrap();
 
-        let items = list_at(&ws, Category::Project, now).unwrap();
+        let items = list_at(&ws, Category::Project, None, now).unwrap();
 
         assert_eq!(items[0].name, "my-project");
         assert_eq!(items[1].name, "website-redesign");
@@ -331,7 +354,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let ws = workspace(dir.path());
 
-        let items = list_at(&ws, Category::Area, fixed_now()).unwrap();
+        let items = list_at(&ws, Category::Area, None, fixed_now()).unwrap();
 
         assert!(items.is_empty());
     }
@@ -352,7 +375,7 @@ mod tests {
         fs::write(&resource_path, "# API Notes v1\n").unwrap();
         set_mtime(&resource_path, 180, now);
 
-        let items = list_at(&ws, Category::Archive, now).unwrap();
+        let items = list_at(&ws, Category::Archive, None, now).unwrap();
 
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].name, "Projects/old-project");
@@ -368,7 +391,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let ws = workspace(dir.path());
 
-        let items = list_at(&ws, Category::Archive, fixed_now()).unwrap();
+        let items = list_at(&ws, Category::Archive, None, fixed_now()).unwrap();
 
         assert!(items.is_empty());
     }
@@ -384,7 +407,7 @@ mod tests {
         fs::write(&project_index, "# Old Project\n").unwrap();
         set_mtime(&project_index, 10, now);
 
-        let items = list_at(&ws, Category::Archive, now).unwrap();
+        let items = list_at(&ws, Category::Archive, None, now).unwrap();
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "Projects/old-project");
@@ -397,10 +420,72 @@ mod tests {
 
         create(&ws, Category::Inbox, "quick-thought", "just plain text").unwrap();
 
-        let items = list_at(&ws, Category::Inbox, fixed_now()).unwrap();
+        let items = list_at(&ws, Category::Inbox, None, fixed_now()).unwrap();
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "quick-thought");
         assert_eq!(items[0].title, "quick-thought");
+    }
+
+    #[test]
+    fn list_at_filter_matches_substring_of_name() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        create(&ws, Category::Project, "website-redesign", "").unwrap();
+        create(&ws, Category::Project, "my-project", "").unwrap();
+
+        let items = list_at(&ws, Category::Project, Some("web"), now).unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "website-redesign");
+    }
+
+    #[test]
+    fn list_at_filter_matches_substring_of_title() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        create(
+            &ws,
+            Category::Project,
+            "q3-initiative",
+            "# Website Redesign Phase 2\n",
+        )
+        .unwrap();
+
+        let items = list_at(&ws, Category::Project, Some("redesign"), now).unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "q3-initiative");
+    }
+
+    #[test]
+    fn list_at_filter_is_case_insensitive() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        create(&ws, Category::Project, "website-redesign", "").unwrap();
+
+        let items = list_at(&ws, Category::Project, Some("WEB"), now).unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "website-redesign");
+    }
+
+    #[test]
+    fn list_at_filter_matching_nothing_returns_empty() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        create(&ws, Category::Project, "website-redesign", "").unwrap();
+
+        let items = list_at(&ws, Category::Project, Some("nonexistent"), now).unwrap();
+
+        assert!(items.is_empty());
     }
 }

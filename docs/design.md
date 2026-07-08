@@ -54,6 +54,10 @@ see "Filing vocabulary vs. creation vocabulary" below for why.
   `Category::archivable() -> [Category; 4]` is the four categories an item can
   be archived from (every variant except `Archive`), used to iterate origin
   subfolders in `items::list`/`mv`.
+- `Category::display_name(&self) -> &'static str` — plural display name for
+  user-facing messages (`list`'s no-match/empty messages), covering all five
+  variants including `Archive` itself. Total where `archive_origin_name` is
+  deliberately partial.
 - `enum Kind { Inbox, Project, Area, Resource, Daily }` — **what `new`/`daily`
   create.** Consumed only by the creation path: `cli::run_new`'s dispatch
   and `Templates::for_kind`.

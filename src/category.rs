@@ -39,6 +39,21 @@ impl Category {
             Category::Resource,
         ]
     }
+
+    /// Plural display name for user-facing messages (`list`'s
+    /// no-match/empty messages), covering all five variants including
+    /// `Archive` itself. Shares strings with `archive_origin_name` for the
+    /// four categories both cover, but is total where `archive_origin_name`
+    /// is deliberately partial.
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Category::Inbox => "Inbox",
+            Category::Project => "Projects",
+            Category::Area => "Areas",
+            Category::Resource => "Resources",
+            Category::Archive => "Archive",
+        }
+    }
 }
 
 /// What `tk new`/`tk daily` create — a different vocabulary from
@@ -102,6 +117,15 @@ mod tests {
                 Category::Resource
             ]
         );
+    }
+
+    #[test]
+    fn display_name_covers_all_five_variants() {
+        assert_eq!(Category::Inbox.display_name(), "Inbox");
+        assert_eq!(Category::Project.display_name(), "Projects");
+        assert_eq!(Category::Area.display_name(), "Areas");
+        assert_eq!(Category::Resource.display_name(), "Resources");
+        assert_eq!(Category::Archive.display_name(), "Archive");
     }
 
     #[test]

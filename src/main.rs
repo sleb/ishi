@@ -35,7 +35,10 @@ enum Commands {
         action: ConfigAction,
     },
     /// List items in a category.
-    List { category: ListCategory },
+    List {
+        category: ListCategory,
+        filter: Option<String>,
+    },
     /// Print a shell completion script for `tk` to stdout.
     Completions { shell: CompletionShell },
 }
@@ -219,10 +222,10 @@ fn main() -> anyhow::Result<()> {
             }
             println!("Opening $EDITOR...");
         }
-        Commands::List { category } => {
+        Commands::List { category, filter } => {
             let ws = Workspace::discover(&cwd, home_config.as_deref())
                 .context("failed to find a PARA workspace")?;
-            let output = cli::run_list(&ws, category.into())?;
+            let output = cli::run_list(&ws, category.into(), filter.as_deref())?;
             println!("{output}");
         }
         Commands::Completions { shell } => {
@@ -495,7 +498,21 @@ mod tests {
         assert_eq!(
             cli.command,
             Commands::List {
-                category: ListCategory::Project
+                category: ListCategory::Project,
+                filter: None
+            }
+        );
+    }
+
+    #[test]
+    fn parses_list_project_with_filter() {
+        let cli = Cli::parse_from(["tk", "list", "project", "web"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::List {
+                category: ListCategory::Project,
+                filter: Some("web".into())
             }
         );
     }
@@ -507,7 +524,8 @@ mod tests {
         assert_eq!(
             cli.command,
             Commands::List {
-                category: ListCategory::Area
+                category: ListCategory::Area,
+                filter: None
             }
         );
     }
@@ -519,7 +537,8 @@ mod tests {
         assert_eq!(
             cli.command,
             Commands::List {
-                category: ListCategory::Resource
+                category: ListCategory::Resource,
+                filter: None
             }
         );
     }
@@ -531,7 +550,8 @@ mod tests {
         assert_eq!(
             cli.command,
             Commands::List {
-                category: ListCategory::Inbox
+                category: ListCategory::Inbox,
+                filter: None
             }
         );
     }
@@ -543,7 +563,8 @@ mod tests {
         assert_eq!(
             cli.command,
             Commands::List {
-                category: ListCategory::Archive
+                category: ListCategory::Archive,
+                filter: None
             }
         );
     }

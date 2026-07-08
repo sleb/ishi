@@ -101,7 +101,7 @@ unlike sorting by Updated.
 
 ---
 
-## User Story 003
+## User Story 003 ✅
 
 - **Summary:** The optional filter matches a substring of either Name or Title, case-insensitively
 - **Depends on:** Story 001 (base column format)

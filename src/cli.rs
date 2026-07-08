@@ -185,9 +185,25 @@ fn format_age(days: u64) -> String {
 /// Renders `items::list`'s rows as the `NAME`/`TITLE`/`UPDATED` table:
 /// header first, then one row per item, each column left-justified to
 /// `3 +` the longest value in that column (including its header) so
-/// columns line up regardless of content width.
-pub fn run_list(ws: &Workspace, category: Category) -> anyhow::Result<String> {
-    let items = items::list(ws, category)?;
+/// columns line up regardless of content width. When `filter` was given and
+/// nothing matches, returns a no-match message instead of a header-only
+/// table; an empty result with no filter still renders the header-only
+/// table.
+pub fn run_list(
+    ws: &Workspace,
+    category: Category,
+    filter: Option<&str>,
+) -> anyhow::Result<String> {
+    let items = items::list(ws, category, filter)?;
+
+    if items.is_empty()
+        && let Some(f) = filter
+    {
+        return Ok(format!(
+            "No items in {} matching \"{f}\".",
+            category.display_name()
+        ));
+    }
 
     let ages: Vec<String> = items
         .iter()
@@ -1141,7 +1157,7 @@ mod tests {
         let path2 = items::create(&ws, Category::Project, "my-project", "# My Project\n").unwrap();
         backdate(&path2, 21);
 
-        let output = run_list(&ws, Category::Project).unwrap();
+        let output = run_list(&ws, Category::Project, None).unwrap();
 
         let lines: Vec<&str> = output.lines().collect();
         assert_eq!(lines[0], "NAME               TITLE              UPDATED");
@@ -1161,7 +1177,7 @@ mod tests {
             items::create(&ws, Category::Resource, "api-notes", "# API Design Notes\n").unwrap();
         backdate(&path, 5);
 
-        let output = run_list(&ws, Category::Resource).unwrap();
+        let output = run_list(&ws, Category::Resource, None).unwrap();
 
         let lines: Vec<&str> = output.lines().collect();
         assert_eq!(lines[0], "NAME        TITLE              UPDATED");
@@ -1175,7 +1191,7 @@ mod tests {
 
         items::create(&ws, Category::Area, "health", "# Health\n").unwrap();
 
-        let output = run_list(&ws, Category::Area).unwrap();
+        let output = run_list(&ws, Category::Area, None).unwrap();
 
         let lines: Vec<&str> = output.lines().collect();
         assert_eq!(lines[0], "NAME     TITLE    UPDATED");
@@ -1197,7 +1213,7 @@ mod tests {
         fs::write(&resource_path, "# API Notes v1\n").unwrap();
         backdate(&resource_path, 180);
 
-        let output = run_list(&ws, Category::Archive).unwrap();
+        let output = run_list(&ws, Category::Archive, None).unwrap();
 
         let lines: Vec<&str> = output.lines().collect();
         assert_eq!(
@@ -1208,5 +1224,40 @@ mod tests {
             lines[2],
             "Resources/api-notes-v1   API Notes v1   180 days ago"
         );
+    }
+
+    #[test]
+    fn run_list_renders_no_match_message_when_filter_matches_nothing() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        items::create(&ws, Category::Project, "my-project", "# My Project\n").unwrap();
+
+        let output = run_list(&ws, Category::Project, Some("nonexistent")).unwrap();
+
+        assert_eq!(output, "No items in Projects matching \"nonexistent\".");
+    }
+
+    #[test]
+    fn run_list_renders_table_when_filter_matches_something() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let path1 = items::create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            "# Website Redesign\n",
+        )
+        .unwrap();
+        backdate(&path1, 2);
+        items::create(&ws, Category::Project, "my-project", "# My Project\n").unwrap();
+
+        let output = run_list(&ws, Category::Project, Some("web")).unwrap();
+
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0], "NAME               TITLE              UPDATED");
+        assert_eq!(lines[1], "website-redesign   Website Redesign   2 days ago");
     }
 }
