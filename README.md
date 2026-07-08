@@ -73,6 +73,7 @@ Archive    0
 | `new [filename] [--project\|--area\|--resource\|--daily]` | Capture a new note. Defaults to the Inbox; pass `--project` or `--area` to scaffold a directory with an `index.md`, or `--resource` for a flat file. Omit `filename` to capture in `$EDITOR`, which will suggest a name for you to confirm or override. `--daily` creates (or opens) today's note and takes no `filename`; see [`tk daily`](#daily) |
 | `daily`                                                   | Create (or open) today's daily note in the Inbox                                                                                                                                                                                                                                                                                                    |
 | `mv <item> <category>`                                    | Move a file or project/area directory to `inbox`, `project`, `area`, `resource`, or `archive`. Archiving preserves which category the item came from                                                                                                                                                                                                |
+| `archive <item>`                                          | Sugar for `mv <item> archive`. Also stamps a summary into the item's frontmatter, and keeps editor quick-open excludes and a `CLAUDE.md` agent instruction up to date so the archive stays out of the way                                                                                                                                          |
 | `list <category> [filter]`                                | List items in a category (`inbox`, `project`, `area`, `resource`, or `archive`) with their inferred title and last-modified time, optionally filtered by name or title                                                                                                                                                                              |
 | `status`                                                  | Show item counts per category, plus last-updated/last-reviewed facts for projects and areas                                                                                                                                                                                                                                                                                         |
 | `review`                                                  | Walk through projects and areas one by one for a weekly review                                                                                                                                                                                                                                                                                      |
@@ -155,6 +156,24 @@ Moved ./1-Projects/my-project to ./4-Archive/Projects/my-project
 ```
 
 Moving a `project`/`area` directory to `inbox` or `resource` (unwrapping a directory back into a flat file) is not yet supported — `tk mv` rejects it with an error rather than guessing which file to keep.
+
+### `archive`
+
+```
+tk archive <item>
+```
+
+Sugar for `tk mv <item> archive` — files an item away without having to name the destination category. Beyond the move itself, `tk archive` keeps the archive out of the way of both your editor and any agent working alongside you:
+
+- It prompts for a one-line summary of the item (defaulting to its inferred title, or its existing `summary` frontmatter field if it has one), and stamps it into the item's frontmatter before moving it — so a listing or a quick look at the frontmatter is enough to know what an archived item was, without reading the whole thing.
+- It keeps `.vscode/settings.json` (`files.exclude`/`search.exclude`) and `.zed/settings.json` (`file_scan_exclude`) up to date with the configured archive folder name, creating either file if missing and merging into it (never overwriting unrelated settings) otherwise — so archived items stop showing up in cmd+P/quick-open.
+- It keeps a `CLAUDE.md` at the workspace root with an instruction not to read the archive folder unless explicitly asked or there's a strong reason to — creating the file (or appending the section) if it isn't already there.
+
+```
+$ tk archive my-project
+Summary for my-project? [My Project]
+Moved ./1-Projects/my-project to ./4-Archive/Projects/my-project
+```
 
 ### `list`
 

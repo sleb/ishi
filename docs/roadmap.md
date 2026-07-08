@@ -8,6 +8,7 @@
 | `new`         | Done — all of user-stories/new.md 001–013 completed, including per-category templates (`daily`/`project`/`area`/`resource`), `{{time}}`/`{{uuid}}` placeholders, and editor-capture with no filename into `--project`/`--area`/`--resource` (story 010)                                                                                                                                                                          |
 | `daily`       | Done                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `mv`          | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `archive`     | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `list`        | Stories 001, 002, 005 done (base NAME/TITLE/UPDATED columns, archive qualified naming, Title-falls-back-to-Name); 003 (filter), 004 (empty-category message) remaining                                                                                                                                                                                                                                                                          |
 | `status`      | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `review`      | Not started (module stub only in `docs/design.md`)                                                                                                                                                                                                                                                                                                                                                                               |
@@ -175,7 +176,23 @@ More involved: wrapping a flat file into a directory when moving into
 to `archive`. No dependents among items 3–5, but **item 7 (`review`) calls
 `items::mv` directly** per `docs/design.md`, so it has to land before review.
 
-- Covers user-stories/mv.md 001.
+- Covers user-stories/mv.md 001–002.
+
+### 6b. `tk archive`
+
+Sugar for `tk mv <item> archive` (item 6), plus three self-healing
+affordances that keep the archive out of the way of the editor and of any
+agent working in the workspace: merging quick-open excludes into
+`.vscode/settings.json`/`.zed/settings.json`, ensuring a `CLAUDE.md`
+instruction telling agents to skip the archive unless asked, and stamping a
+one-line `summary` frontmatter field onto the item being archived (reusing
+the same title-inference `list` (item 4) needs). Module ownership for the
+editor-exclude and `CLAUDE.md` writers isn't decided yet — not sketched in
+`docs/design.md` — since none of this existed before this story was
+written; needs an LLD pass before implementation. Depends on item 6 (the
+move) and item 4 (title inference for the summary default).
+
+- Covers user-stories/archive.md 001–004.
 
 ## Later
 
