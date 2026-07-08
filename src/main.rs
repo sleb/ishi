@@ -35,6 +35,7 @@ enum Commands {
         action: ConfigAction,
     },
     /// List items in a category.
+    #[command(alias = "ls")]
     List {
         category: ListCategory,
         filter: Option<String>,
