@@ -65,7 +65,7 @@
 ## User Story 003 ✅
 
 - **Summary:** Stay current with `tk`'s commands as they change
-- **Depends on:** Story 001 (script generation), [init.md](init.md) Story 001, [new.md](new.md) Story 002, [daily.md](daily.md) Story 001, [mv.md](mv.md) Story 001, [list.md](list.md) Story 001, [status.md](status.md) Story 001, [review.md](review.md) Story 001, [config.md](config.md) Story 001 (every top-level command the script must cover)
+- **Depends on:** Story 001 (script generation), [init.md](init.md) Story 001, [new.md](new.md) Story 002, [daily.md](daily.md) Story 001, [move.md](move.md) Story 001, [list.md](list.md) Story 001, [status.md](status.md) Story 001, [review.md](review.md) Story 001, [config.md](config.md) Story 001 (every top-level command the script must cover)
 
 ### Use Case
 
@@ -78,5 +78,5 @@
 - **Scenario:** Completions cover all top-level commands
 - **Given:** I run `tk completions` for any supported shell
 - **When:** Tick generates the script
-- **Then:** the script includes completions for every top-level command in `tk`'s CLI definition (`init`, `new`, `daily`, `mv`, `list`, `status`, `review`, `config`, `completions`), generated from that definition rather than a hand-maintained list
+- **Then:** the script includes completions for every top-level command in `tk`'s CLI definition (`init`, `new`, `daily`, `move`, `list`, `status`, `review`, `config`, `completions`), generated from that definition rather than a hand-maintained list
 - **and Then:** running `tk completions` again after a command or flag is added or removed (in a newer `tk` version) reflects that change automatically, with no separate update to the completion script's source

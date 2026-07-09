@@ -1,4 +1,6 @@
-# User Stories: `tk mv`
+# User Stories: `tk move`
+
+`mv` is an alias for `move`.
 
 ## User Story 001
 
@@ -16,36 +18,41 @@
 
 - **Scenario:** Moving a flat file into `project` wraps it into a new directory with an `index.md`
 - **Given:** `my-file.md` exists in `0-Inbox`
-- **When:** I run `tk mv my-file project`
+- **When:** I run `tk move my-file project`
 - **Then:** Tick prints `Moved ./0-Inbox/my-file.md to ./1-Projects/my-file/index.md`
 - **and Then:** `0-Inbox/my-file.md` no longer exists, and `1-Projects/my-file/index.md` has the same content `my-file.md` had
 
 - **Scenario:** Moving a flat file into `area` wraps it the same way
 - **Given:** `my-file.md` exists in `3-Resources`
-- **When:** I run `tk mv my-file area`
+- **When:** I run `tk move my-file area`
 - **Then:** Tick prints `Moved ./3-Resources/my-file.md to ./2-Areas/my-file/index.md`
 
 - **Scenario:** Moving a flat file into `inbox` or `resource` relocates it without wrapping
 - **Given:** `my-file.md` exists in `3-Resources`
-- **When:** I run `tk mv my-file inbox`
+- **When:** I run `tk move my-file inbox`
 - **Then:** Tick prints `Moved ./3-Resources/my-file.md to ./0-Inbox/my-file.md`
 - **and Then:** no directory is created — the destination is still a flat file
 
 - **Scenario:** Moving a project directory to `area` (or vice versa) relocates the directory as-is, without re-wrapping
 - **Given:** `website-redesign` exists as a directory under `1-Projects`
-- **When:** I run `tk mv website-redesign area`
+- **When:** I run `tk move website-redesign area`
 - **Then:** Tick prints `Moved ./1-Projects/website-redesign to ./2-Areas/website-redesign`
 - **and Then:** `website-redesign/index.md` and every other file in the directory are unchanged, just relocated
 
 - **Scenario:** Moving any category's item to `archive` preserves its origin category as a subfolder
 - **Given:** `website-redesign` exists as a directory under `1-Projects`
-- **When:** I run `tk mv website-redesign archive`
+- **When:** I run `tk move website-redesign archive`
 - **Then:** Tick prints `Moved ./1-Projects/website-redesign to ./4-Archive/Projects/website-redesign`
 
 - **Scenario:** Archiving a flat file also preserves its origin category as a subfolder
 - **Given:** `my-file.md` exists in `3-Resources`
-- **When:** I run `tk mv my-file archive`
+- **When:** I run `tk move my-file archive`
 - **Then:** Tick prints `Moved ./3-Resources/my-file.md to ./4-Archive/Resources/my-file.md`
+
+- **Scenario:** The `mv` alias behaves identically to `move`
+- **Given:** `my-file.md` exists in `0-Inbox`
+- **When:** I run `tk mv my-file project`
+- **Then:** Tick prints `Moved ./0-Inbox/my-file.md to ./1-Projects/my-file/index.md`, exactly as `tk move my-file project` would
 
 ---
 
@@ -65,12 +72,12 @@
 
 - **Scenario:** Moving a project directory to `inbox` or `resource` is rejected
 - **Given:** `<item>` exists as a directory under `1-Projects` or `2-Areas`
-- **When:** I run `tk mv <item> inbox` or `tk mv <item> resource`
+- **When:** I run `tk move <item> inbox` or `tk move <item> resource`
 - **Then:** Tick prints an error explaining that unwrapping a directory into a flat file is not yet supported
 - **and Then:** no files or directories are moved, created, or modified
 
 - **Scenario:** Moving an area directory to `inbox` or `resource` is rejected
 - **Given:** `<item>` exists as a directory under `2-Areas`
-- **When:** I run `tk mv <item> inbox` or `tk mv <item> resource`
+- **When:** I run `tk move <item> inbox` or `tk move <item> resource`
 - **Then:** Tick prints an error explaining that unwrapping a directory into a flat file is not yet supported
 - **and Then:** no files or directories are moved, created, or modified

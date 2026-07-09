@@ -1,6 +1,6 @@
 # User Stories: `tk archive`
 
-`tk archive <item>` is sugar for `tk mv <item> archive` (see [mv.md](mv.md)) —
+`tk archive <item>` is sugar for `tk move <item> archive` (see [move.md](move.md)) —
 a shorter, more memorable way to file something away. But the whole point of
 having an archive instead of just deleting things is that it stays *out of
 the way* until you actually need it: your editor's fuzzy-find shouldn't
@@ -15,14 +15,14 @@ does have a reason to look can get the gist without reading the whole note.
 
 ## User Story 001
 
-- **Summary:** `tk archive <item>` moves the item exactly like `tk mv <item> archive`
+- **Summary:** `tk archive <item>` moves the item exactly like `tk move <item> archive`
 - **Status:** Not started
-- **Depends on:** [mv.md](mv.md) Story 001 (the move semantics this delegates to)
+- **Depends on:** [move.md](move.md) Story 001 (the move semantics this delegates to)
 
 ### Use Case
 
 - **As a** Tick user who has decided a project, area, resource, or inbox note is done
-- **I want to** run `tk archive <item>` instead of `tk mv <item> archive`
+- **I want to** run `tk archive <item>` instead of `tk move <item> archive`
 - **so that** I don't have to remember or type the destination category name for the one destination this command only ever has
 
 ### Acceptance Criteria
@@ -30,8 +30,8 @@ does have a reason to look can get the gist without reading the whole note.
 - **Scenario:** Archiving a project files it under the Archive's Projects subfolder
 - **Given:** I am inside an initialized PARA system with a project `website-redesign`
 - **When:** I run `tk archive website-redesign`
-- **Then:** `website-redesign` is moved from `1-Projects/website-redesign` to `4-Archive/Projects/website-redesign`, exactly as `tk mv website-redesign archive` would move it
-- **and Then:** Tick prints the same `Moved ...` confirmation `tk mv` prints
+- **Then:** `website-redesign` is moved from `1-Projects/website-redesign` to `4-Archive/Projects/website-redesign`, exactly as `tk move website-redesign archive` would move it
+- **and Then:** Tick prints the same `Moved ...` confirmation `tk move` prints
 
 - **Scenario:** Archiving an inbox note or resource files it under the matching subfolder
 - **Given:** I am inside an initialized PARA system with a resource `my-file.md`
@@ -46,7 +46,7 @@ does have a reason to look can get the gist without reading the whole note.
 - **Scenario:** Archiving a directory item that doesn't support unwrapping still only applies to the reverse direction
 - **Given:** I am inside an initialized PARA system with a project `website-redesign`
 - **When:** I run `tk archive website-redesign`
-- **Then:** the move succeeds — `mv.md` Story 002's rejection only applies to unwrapping a directory back into `inbox`/`resource`, never to archiving
+- **Then:** the move succeeds — `move.md` Story 002's rejection only applies to unwrapping a directory back into `inbox`/`resource`, never to archiving
 
 ---
 

@@ -7,7 +7,7 @@ file.
 
 Column definitions, used throughout:
 
-- **Name** — the identifier you'd pass to `tk mv`/other commands: the
+- **Name** — the identifier you'd pass to `tk move`/other commands: the
   directory name for `project`/`area`, the filename (without extension) for
   `resource`/`inbox`, and `<OriginCategory>/<name>` for `archive` (since
   archived items from different origin categories can share a bare name).

@@ -61,7 +61,7 @@ order, the per-item prompt, and what `[a]rchive` does to the filesystem.
 
 ## User Story 002
 
-- **Summary:** `[a]rchive` moves the item the same way `tk mv <item> archive` would, and review moves on to the next item
+- **Summary:** `[a]rchive` moves the item the same way `tk move <item> archive` would, and review moves on to the next item
 - **Status:** Not started
 - **Depends on:** Story 001 (the walk this action operates within)
 
@@ -69,14 +69,14 @@ order, the per-item prompt, and what `[a]rchive` does to the filesystem.
 
 - **As a** Tick user doing a weekly review
 - **I want to** archive a project or area right from the review prompt
-- **so that** I don't have to interrupt the review to run `tk mv` separately for things I've decided are done
+- **so that** I don't have to interrupt the review to run `tk move` separately for things I've decided are done
 
 ### Acceptance Criteria
 
 - **Scenario:** Archiving a project during review files it under the Archive's Projects subfolder
 - **Given:** I am mid-`tk review` on project `website-redesign`
 - **When:** I choose `[a]rchive`
-- **Then:** `website-redesign` is moved from `1-Projects/website-redesign` to `4-Archive/Projects/website-redesign`, exactly as `tk mv website-redesign archive` would move it (see [mv.md](mv.md))
+- **Then:** `website-redesign` is moved from `1-Projects/website-redesign` to `4-Archive/Projects/website-redesign`, exactly as `tk move website-redesign archive` would move it (see [move.md](move.md))
 - **and Then:** review continues on to the next item in the walk order
 
 - **Scenario:** Archiving an area during review files it under the Archive's Areas subfolder

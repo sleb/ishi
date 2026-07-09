@@ -141,25 +141,27 @@ $ tk daily
 Opening $EDITOR...
 ```
 
-### `mv`
+### `move`
 
 *Not yet implemented — described here as designed, target behavior.*
 
 ```
-tk mv <item> <inbox|project|area|resource|archive>
+tk move <item> <inbox|project|area|resource|archive>
 ```
+
+`mv` is an alias for `move`.
 
 Moves an existing file or project/area directory to the given category. Moving a flat file into `project` or `area` wraps it into a new directory with an `index.md`; moving to `archive` preserves which category the item came from, filing it under a matching subfolder.
 
 ```
-$ tk mv my-file.md project
+$ tk move my-file.md project
 Moved ./0-Inbox/my-file.md to ./1-Projects/my-file/index.md
 
 $ tk mv my-project archive
 Moved ./1-Projects/my-project to ./4-Archive/Projects/my-project
 ```
 
-Moving a `project`/`area` directory to `inbox` or `resource` (unwrapping a directory back into a flat file) is not yet supported — `tk mv` rejects it with an error rather than guessing which file to keep.
+Moving a `project`/`area` directory to `inbox` or `resource` (unwrapping a directory back into a flat file) is not yet supported — `tk move` rejects it with an error rather than guessing which file to keep.
 
 ### `archive`
 
@@ -169,7 +171,7 @@ Moving a `project`/`area` directory to `inbox` or `resource` (unwrapping a direc
 tk archive <item>
 ```
 
-Sugar for `tk mv <item> archive` — files an item away without having to name the destination category. Beyond the move itself, `tk archive` keeps the archive out of the way of both your editor and any agent working alongside you:
+Sugar for `tk move <item> archive` — files an item away without having to name the destination category. Beyond the move itself, `tk archive` keeps the archive out of the way of both your editor and any agent working alongside you:
 
 - It prompts for a one-line summary of the item (defaulting to its inferred title, or its existing `summary` frontmatter field if it has one), and stamps it into the item's frontmatter before moving it — so a listing or a quick look at the frontmatter is enough to know what an archived item was, without reading the whole thing.
 - It keeps `.vscode/settings.json` (`files.exclude`/`search.exclude`) and `.zed/settings.json` (`file_scan_exclude`) up to date with the configured archive folder name, creating either file if missing and merging into it (never overwriting unrelated settings) otherwise — so archived items stop showing up in cmd+P/quick-open.

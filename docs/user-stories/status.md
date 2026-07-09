@@ -174,7 +174,7 @@ Projects and areas are each sorted alphabetically by Name, matching `list`.
 - **Scenario:** Choosing `[a]rchive` moves the item without touching `last_reviewed`
 - **Given:** I am mid-`tk review` on project `website-redesign`, whose `index.md` frontmatter has no `last_reviewed` field
 - **When:** I choose `[a]rchive`
-- **Then:** `website-redesign` is moved to the Archive the same way `tk mv website-redesign archive` would (origin category preserved)
+- **Then:** `website-redesign` is moved to the Archive the same way `tk move website-redesign archive` would (origin category preserved)
 - **and Then:** the moved `index.md`'s frontmatter still has no `last_reviewed` field — archiving is not treated as a review
 
 - **Scenario:** Choosing `[s]kip` leaves the item and its frontmatter untouched

@@ -7,10 +7,10 @@
 | `init`        | Done                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `new`         | Done — all of user-stories/new.md 001–013 completed, including per-category templates (`daily`/`project`/`area`/`resource`), `{{time}}`/`{{uuid}}` placeholders, and editor-capture with no filename into `--project`/`--area`/`--resource` (story 010)                                                                                                                                                                          |
 | `daily`       | Done                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `mv`          | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `move`        | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `archive`     | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `list`        | Stories 001, 002, 003, 005 done (base NAME/TITLE/UPDATED columns, archive qualified naming, substring filter, Title-falls-back-to-Name); 004 (empty-category message) remaining                                                                                                                                                                                                                                                                          |
-| `status`      | Stories 001–003 done (per-category counts per [docs/lld/009-status-counts.md](lld/009-status-counts.md); per-item Project/Area rows with `updated:`/`reviewed:` per [docs/lld/010-status-per-item.md](lld/010-status-per-item.md)); 004 remaining, blocked on `review`/`mv`                                                                                                                                                       |
+| `status`      | Stories 001–003 done (per-category counts per [docs/lld/009-status-counts.md](lld/009-status-counts.md); per-item Project/Area rows with `updated:`/`reviewed:` per [docs/lld/010-status-per-item.md](lld/010-status-per-item.md)); 004 remaining, blocked on `review`/`move`                                                                                                                                                       |
 | `review`      | Not started (module stub only in `docs/design.md`)                                                                                                                                                                                                                                                                                                                                                                               |
 | `config`      | Layering done, and `config init`/`config init -g`/`config edit`/`config edit -g`/`#:schema` file are implemented — bare `tk config` (provenance display) is still open                                                                                                                                                                                                                                                |
 | `completions` | Done — `tk completions bash`/`zsh`/`fish`/`powershell`, per [docs/lld/008-completions.md](lld/008-completions.md)                                                                                                                                                                                                                                                                                                               |
@@ -33,7 +33,7 @@ that are docs-only and deliberately _not_ drawn here).
      +--+------------+------------+
      |               |            |
      v               v            v
- 4. list         6. mv      2. config layering
+ 4. list         6. move     2. config layering
      |               |       + templates (done)
      v               |         /            \
  5. status           |        v              v
@@ -169,18 +169,19 @@ judgment to the user. Needs `items::read_last_reviewed` /
 caller until item 7 (`review`) lands, but the read side is exercised by
 `status` alone. Covers user-stories/status.md.
 
-### 6. `tk mv`
+### 6. `tk move`
 
 More involved: wrapping a flat file into a directory when moving into
 `project`/`area`, and preserving origin category as a subfolder when moving
-to `archive`. No dependents among items 3–5, but **item 7 (`review`) calls
-`items::mv` directly** per `docs/design.md`, so it has to land before review.
+to `archive`. `mv` is an alias for `move`, same as `ls` is for `list`. No
+dependents among items 3–5, but **item 7 (`review`) calls `items::mv`
+directly** per `docs/design.md`, so it has to land before review.
 
-- Covers user-stories/mv.md 001–002.
+- Covers user-stories/move.md 001–002.
 
 ### 6b. `tk archive`
 
-Sugar for `tk mv <item> archive` (item 6), plus three self-healing
+Sugar for `tk move <item> archive` (item 6), plus three self-healing
 affordances that keep the archive out of the way of the editor and of any
 agent working in the workspace: merging quick-open excludes into
 `.vscode/settings.json`/`.zed/settings.json`, ensuring a `CLAUDE.md`
@@ -198,7 +199,7 @@ move) and item 4 (title inference for the summary default).
 
 ### 7. `tk review`
 
-Composes `mv` (item 6) with the `Ui` trait already defined in `src/cli.rs`
+Composes `move` (item 6) with the `Ui` trait already defined in `src/cli.rs`
 (`confirm`/`choose` are implemented and tested via `run_init`/`run_new`), plus
 `items::write_last_reviewed` (item 5) on `[k]eep`. Blocked on items 5 and 6.
 
