@@ -217,31 +217,34 @@ impl Config {
 
         let local_folders = local.folders.unwrap_or_default();
         let user_folders = user.folders.unwrap_or_default();
-        let (inbox, inbox_src) = merge(
-            defaults.category_dirs[0].clone(),
+        let user_folder_values = [
             user_folders.inbox,
-            local_folders.inbox,
-        );
-        let (projects, projects_src) = merge(
-            defaults.category_dirs[1].clone(),
             user_folders.projects,
-            local_folders.projects,
-        );
-        let (areas, areas_src) = merge(
-            defaults.category_dirs[2].clone(),
             user_folders.areas,
-            local_folders.areas,
-        );
-        let (resources, resources_src) = merge(
-            defaults.category_dirs[3].clone(),
             user_folders.resources,
-            local_folders.resources,
-        );
-        let (archive, archive_src) = merge(
-            defaults.category_dirs[4].clone(),
             user_folders.archive,
+        ];
+        let local_folder_values = [
+            local_folders.inbox,
+            local_folders.projects,
+            local_folders.areas,
+            local_folders.resources,
             local_folders.archive,
-        );
+        ];
+        let mut category_dirs = [const { String::new() }; 5];
+        let mut category_dirs_src = [Source::Default; 5];
+        for (i, ((default, user_value), local_value)) in defaults
+            .category_dirs
+            .iter()
+            .cloned()
+            .zip(user_folder_values)
+            .zip(local_folder_values)
+            .enumerate()
+        {
+            let (value, source) = merge(default, user_value, local_value);
+            category_dirs[i] = value;
+            category_dirs_src[i] = source;
+        }
 
         let (extension, extension_src) = merge(
             defaults.default_extension.clone(),
@@ -279,7 +282,7 @@ impl Config {
 
         Ok((
             Config {
-                category_dirs: [inbox, projects, areas, resources, archive],
+                category_dirs,
                 default_extension: extension,
                 templates: Templates {
                     note,
@@ -290,13 +293,7 @@ impl Config {
                 },
             },
             ConfigOrigins {
-                category_dirs: [
-                    inbox_src,
-                    projects_src,
-                    areas_src,
-                    resources_src,
-                    archive_src,
-                ],
+                category_dirs: category_dirs_src,
                 default_extension: extension_src,
                 templates: TemplateOrigins {
                     note: note_src,

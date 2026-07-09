@@ -72,13 +72,15 @@ Archive    0
 | `init [name]`                                             | Initialize a new PARA system                                                                                                                                                                                                                                                                                                                        |
 | `new [filename] [--project\|--area\|--resource\|--daily]` | Capture a new note. Defaults to the Inbox; pass `--project` or `--area` to scaffold a directory with an `index.md`, or `--resource` for a flat file. Omit `filename` to capture in `$EDITOR`, which will suggest a name for you to confirm or override. `--daily` creates (or opens) today's note and takes no `filename`; see [`tk daily`](#daily) |
 | `daily`                                                   | Create (or open) today's daily note in the Inbox                                                                                                                                                                                                                                                                                                    |
-| `mv <item> <category>`                                    | Move a file or project/area directory to `inbox`, `project`, `area`, `resource`, or `archive`. Archiving preserves which category the item came from                                                                                                                                                                                                |
-| `archive <item>`                                          | Sugar for `mv <item> archive`. Also stamps a summary into the item's frontmatter, and keeps editor quick-open excludes and a `CLAUDE.md` agent instruction up to date so the archive stays out of the way                                                                                                                                          |
+| `mv <item> <category>` *(not yet implemented)*             | Move a file or project/area directory to `inbox`, `project`, `area`, `resource`, or `archive`. Archiving preserves which category the item came from                                                                                                                                                                                                |
+| `archive <item>` *(not yet implemented)*                   | Sugar for `mv <item> archive`. Also stamps a summary into the item's frontmatter, and keeps editor quick-open excludes and a `CLAUDE.md` agent instruction up to date so the archive stays out of the way                                                                                                                                          |
 | `list <category> [filter]`                                | List items in a category (`inbox`, `project`, `area`, `resource`, or `archive`) with their inferred title and last-modified time, optionally filtered by name or title                                                                                                                                                                              |
 | `status`                                                  | Show item counts per category, plus last-updated/last-reviewed facts for projects and areas                                                                                                                                                                                                                                                                                         |
-| `review`                                                  | Walk through projects and areas one by one for a weekly review                                                                                                                                                                                                                                                                                      |
+| `review` *(not yet implemented)*                            | Walk through projects and areas one by one for a weekly review                                                                                                                                                                                                                                                                                      |
 | `config [init\|edit] [-g\|--global]`                      | View the effective config, or initialize/edit `.tick.toml`; `-g` targets `~/.tick.toml` instead of the local one                                                                                                                                                                                                                                    |
 | `completions <shell>`                                     | Generate a shell completion script                                                                                                                                                                                                                                                                                                                  |
+
+`mv`, `archive`, and `review` are documented below as designed, target behavior — they don't exist in `tk` yet, and running them today will hit a clap parse error rather than doing anything.
 
 Files created without an extension default to `.md`.
 
@@ -141,6 +143,8 @@ Opening $EDITOR...
 
 ### `mv`
 
+*Not yet implemented — described here as designed, target behavior.*
+
 ```
 tk mv <item> <inbox|project|area|resource|archive>
 ```
@@ -158,6 +162,8 @@ Moved ./1-Projects/my-project to ./4-Archive/Projects/my-project
 Moving a `project`/`area` directory to `inbox` or `resource` (unwrapping a directory back into a flat file) is not yet supported — `tk mv` rejects it with an error rather than guessing which file to keep.
 
 ### `archive`
+
+*Not yet implemented — described here as designed, target behavior.*
 
 ```
 tk archive <item>
@@ -232,6 +238,8 @@ Archive     12
 ```
 
 ### `review`
+
+*Not yet implemented — described here as designed, target behavior.*
 
 ```
 tk review

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Tick (`tk`) is a CLI for managing a PARA-method note system (Projects/Areas/Resources/Archive). See [README.md](README.md) for user-facing behavior and the full command reference, and [docs/design.md](docs/design.md) for the module architecture. Do not duplicate details from those files here — link to them instead.
 
-The project is currently at the boilerplate stage (`src/main.rs` is just `Hello, world!`); the design in `docs/design.md` and the acceptance criteria in `docs/user-stories/` describe the target architecture and behavior, not yet-implemented code. When implementing, follow the module boundaries in `docs/design.md` exactly — the separation between filesystem/business logic (`workspace`, `items`, `review`, `editor`) and terminal I/O (`cli`) is the core design constraint of this codebase, chosen specifically so the former can be unit-tested without a real shell, editor, or terminal.
+`init`, `new`, `daily`, `list`, `status`, `config`, and `completions` are implemented; `mv`, `archive`, and `review` are not yet — the design in `docs/design.md` and the acceptance criteria in `docs/user-stories/` describe their target architecture and behavior ahead of the code. When implementing, follow the module boundaries in `docs/design.md` exactly — the separation between filesystem/business logic (`workspace`, `items`, `review`, `editor`) and terminal I/O (`cli`) is the core design constraint of this codebase, chosen specifically so the former can be unit-tested without a real shell, editor, or terminal.
 
 ## Commands
 

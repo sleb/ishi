@@ -96,56 +96,31 @@ pub fn suggest_filename(content: &str) -> String {
 }
 
 fn suggest_filename_at(content: &str, now: SystemTime) -> String {
-    let lines: Vec<&str> = content.lines().collect();
-    let body = skip_frontmatter(&lines);
-
-    if let Some(title) = find_heading_text(body) {
+    if let Some(title) = gist::parser::first_heading_text(content) {
         return slugify(&title);
     }
+    let body = &content[gist::parser::frontmatter_body_offset(content)..];
     if let Some(line) = first_fallback_line(body) {
         return slugify(line);
     }
     timestamp_slug(now)
 }
 
-/// Skips a leading `---`-delimited frontmatter block, if `lines` starts
-/// with one.
-fn skip_frontmatter<'a>(lines: &'a [&'a str]) -> &'a [&'a str] {
-    if lines.first() != Some(&"---") {
-        return lines;
-    }
-    match lines.iter().skip(1).position(|line| *line == "---") {
-        Some(relative_idx) => &lines[relative_idx + 2..],
-        None => lines,
-    }
-}
-
-fn heading_text(line: &str) -> Option<&str> {
-    let trimmed = line.trim_start();
-    let rest = trimmed.strip_prefix('#')?;
-    Some(rest.trim_start_matches('#').trim())
-}
-
-fn find_heading_text(lines: &[&str]) -> Option<String> {
-    for line in lines {
-        if let Some(text) = heading_text(line)
-            && !text.is_empty()
-        {
-            return Some(text.to_string());
-        }
-    }
-    None
-}
-
-fn first_fallback_line<'a>(lines: &[&'a str]) -> Option<&'a str> {
-    lines.iter().copied().find(|line| {
+/// The first non-blank line of `body` that isn't an empty-text heading (a
+/// heading with no text, e.g. an unfilled `# {{cursor}}` template, was
+/// already rejected as a title candidate by
+/// `gist::parser::first_heading_text` and isn't a fallback candidate
+/// either).
+fn first_fallback_line(body: &str) -> Option<&str> {
+    body.lines().find(|line| {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             return false;
         }
-        // A heading line with no text was already rejected as a title
-        // candidate; it isn't a fallback candidate either.
-        heading_text(line).is_none_or(|text| !text.is_empty())
+        match trimmed.strip_prefix('#') {
+            Some(rest) => !rest.trim_start_matches('#').trim().is_empty(),
+            None => true,
+        }
     })
 }
 

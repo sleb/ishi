@@ -58,6 +58,17 @@ impl Ui for TerminalUi {
     }
 }
 
+/// Gathers the fields common to every template render — today's date, the
+/// current time, and a fresh UUID — computed once so `run_new`'s two arms
+/// and `run_daily` don't each redo the same three calls.
+fn template_fields() -> (String, String, String) {
+    let now = Local::now();
+    let today = now.date_naive().format("%Y-%m-%d").to_string();
+    let time = now.format("%H:%M").to_string();
+    let uuid = Uuid::new_v4().to_string();
+    (today, time, uuid)
+}
+
 pub fn run_new(
     ws: &Workspace,
     editor: &dyn Editor,
@@ -69,19 +80,13 @@ pub fn run_new(
     let template = ws.config.templates.for_kind(kind);
     let path = match filename {
         Some(name) => {
-            let now = Local::now();
-            let today = now.date_naive().format("%Y-%m-%d").to_string();
-            let time = now.format("%H:%M").to_string();
-            let uuid = Uuid::new_v4().to_string();
+            let (today, time, uuid) = template_fields();
             let rendered =
                 config::render(template, &name, &today, &time, &uuid).replace("{{cursor}}", "");
             items::create(ws, category, &name, &rendered)?
         }
         None => {
-            let now = Local::now();
-            let today = now.date_naive().format("%Y-%m-%d").to_string();
-            let time = now.format("%H:%M").to_string();
-            let uuid = Uuid::new_v4().to_string();
+            let (today, time, uuid) = template_fields();
             let seed = config::render(template, "", &today, &time, &uuid);
             let (content, suggested) = editor.capture(&seed)?;
             let default = if category.is_directory_style() {
@@ -111,16 +116,13 @@ pub fn daily_note_exists(ws: &Workspace) -> bool {
 }
 
 pub fn run_daily(ws: &Workspace, editor: &dyn Editor) -> anyhow::Result<DailyOutcome> {
-    let now = Local::now();
-    let today = now.date_naive().format("%Y-%m-%d").to_string();
+    let (today, time, uuid) = template_fields();
     let path = items::item_path(ws, Category::Inbox, &today);
 
     if path.exists() {
         editor.open(&path)?;
         Ok(DailyOutcome::Reopened(path))
     } else {
-        let time = now.format("%H:%M").to_string();
-        let uuid = Uuid::new_v4().to_string();
         let rendered = config::render(
             ws.config.templates.for_kind(Kind::Daily),
             &today,
