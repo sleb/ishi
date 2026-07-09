@@ -66,10 +66,10 @@ Projects and areas are each sorted alphabetically by Name, matching `list`.
 
 ---
 
-## User Story 002
+## User Story 002 ✅
 
 - **Summary:** Projects and Areas get a per-item breakdown showing how long ago each was updated
-- **Status:** Not started
+- **Status:** Done
 - **Depends on:** Story 001 (category counts), [list.md](list.md) Story 001, Story 005 (shared Name/Title inference convention)
 
 ### Use Case
@@ -111,10 +111,10 @@ Projects and areas are each sorted alphabetically by Name, matching `list`.
 
 ---
 
-## User Story 003
+## User Story 003 ✅
 
 - **Summary:** Each project/area row also shows how long ago it was last reviewed, or `never`
-- **Status:** Not started
+- **Status:** Done
 - **Depends on:** Story 002 (per-item row this fact is appended to), Story 004 (defines when `last_reviewed` is written)
 
 ### Use Case

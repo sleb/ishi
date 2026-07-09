@@ -241,7 +241,8 @@ pub fn run_list(
 /// Renders `items::status`'s counts as one `<Category> <count>` line per
 /// category, in `Inbox`/`Projects`/`Areas`/`Resources`/`Archive` order,
 /// name-column width sized the same way `run_list`'s NAME column is
-/// (longest label + 3). No per-item rows yet — status.md 002.
+/// (longest label + 3). `Project`/`Area` also get per-item rows under
+/// their count line; `Inbox`/`Resource`/`Archive` stay counts-only.
 pub fn run_status(ws: &Workspace) -> anyhow::Result<String> {
     let categories = [
         Category::Inbox,
@@ -259,18 +260,50 @@ pub fn run_status(ws: &Workspace) -> anyhow::Result<String> {
         .unwrap_or(0)
         + 3;
 
-    let lines: Vec<String> = categories
+    let mut lines = Vec::new();
+    for category in categories {
+        lines.push(format!(
+            "{:<name_width$}{}",
+            category.display_name(),
+            report.counts[category as usize]
+        ));
+        match category {
+            Category::Project => lines.extend(render_status_items(&report.projects)),
+            Category::Area => lines.extend(render_status_items(&report.areas)),
+            _ => {}
+        }
+    }
+    Ok(lines.join("\n"))
+}
+
+/// Renders `Project`/`Area`'s per-item rows: `` `- `` prefix, Name/Title
+/// columns sized the same way `run_list`'s are, then `updated:`/
+/// `reviewed:` ages (`reviewed: never` when the item has no
+/// `last_reviewed` value). Empty input renders no rows at all.
+fn render_status_items(items: &[items::StatusItem]) -> Vec<String> {
+    if items.is_empty() {
+        return Vec::new();
+    }
+
+    let name_width = items.iter().map(|i| i.name.len()).max().unwrap_or(0) + 3;
+    let title_width = items.iter().map(|i| i.title.len()).max().unwrap_or(0) + 3;
+
+    items
         .iter()
-        .map(|c| {
+        .map(|item| {
+            let reviewed = match item.reviewed_days_ago {
+                Some(days) => format_age(days),
+                None => "never".to_string(),
+            };
             format!(
-                "{:<name_width$}{}",
-                c.display_name(),
-                report.counts[*c as usize]
+                "`- {:<name_width$}{:<title_width$}updated: {}   reviewed: {}",
+                item.name,
+                item.title,
+                format_age(item.updated_days_ago),
+                reviewed
             )
         })
-        .collect();
-
-    Ok(lines.join("\n"))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1358,7 +1391,16 @@ mod tests {
 
         assert_eq!(
             output,
-            "Inbox       2\nProjects    3\nAreas       2\nResources   5\nArchive     12"
+            "Inbox       2\n\
+             Projects    3\n\
+             `- p1   p1   updated: today   reviewed: never\n\
+             `- p2   p2   updated: today   reviewed: never\n\
+             `- p3   p3   updated: today   reviewed: never\n\
+             Areas       2\n\
+             `- a1   a1   updated: today   reviewed: never\n\
+             `- a2   a2   updated: today   reviewed: never\n\
+             Resources   5\n\
+             Archive     12"
         );
     }
 
@@ -1375,5 +1417,131 @@ mod tests {
             assert!(line.ends_with('0'));
             assert!(!line.contains("- "));
         }
+    }
+
+    #[test]
+    fn run_status_renders_project_rows_under_the_count_line() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let path1 = items::create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            "# Website Redesign\n",
+        )
+        .unwrap();
+        backdate(&path1, 2);
+        items::create(&ws, Category::Project, "my-project", "# My Project\n").unwrap();
+
+        let output = run_status(&ws).unwrap();
+        let lines: Vec<&str> = output.lines().collect();
+
+        let projects_idx = lines
+            .iter()
+            .position(|l| l.starts_with("Projects"))
+            .unwrap();
+        assert!(lines[projects_idx + 1].starts_with("`- my-project"));
+        assert!(lines[projects_idx + 1].contains("reviewed: never"));
+        assert!(lines[projects_idx + 2].starts_with("`- website-redesign"));
+        assert!(lines[projects_idx + 2].contains("updated: 2 days ago"));
+    }
+
+    #[test]
+    fn run_status_renders_area_rows_under_the_count_line() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        items::create(&ws, Category::Area, "health", "# Health\n").unwrap();
+
+        let output = run_status(&ws).unwrap();
+        let lines: Vec<&str> = output.lines().collect();
+
+        let areas_idx = lines.iter().position(|l| l.starts_with("Areas")).unwrap();
+        assert!(lines[areas_idx + 1].starts_with("`- health"));
+    }
+
+    #[test]
+    fn run_status_row_falls_back_title_to_name() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        items::create(&ws, Category::Project, "quick-idea", "no heading here").unwrap();
+
+        let output = run_status(&ws).unwrap();
+
+        assert!(output.contains("`- quick-idea   quick-idea"));
+    }
+
+    #[test]
+    fn run_status_count_only_categories_have_no_rows_following() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        items::create(&ws, Category::Inbox, "a", "").unwrap();
+        items::create(&ws, Category::Resource, "r1", "").unwrap();
+
+        let output = run_status(&ws).unwrap();
+
+        assert!(!output.contains("`- "));
+    }
+
+    #[test]
+    fn run_status_row_shows_reviewed_days_ago() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let today = chrono::Local::now().date_naive();
+        let last_reviewed = today - chrono::Duration::days(3);
+
+        let path = items::create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            &format!(
+                "---\nlast_reviewed: {}\n---\n# Website Redesign\n",
+                last_reviewed.format("%Y-%m-%d")
+            ),
+        )
+        .unwrap();
+        backdate(&path, 2);
+
+        let output = run_status(&ws).unwrap();
+
+        assert!(output.contains("updated: 2 days ago   reviewed: 3 days ago"));
+    }
+
+    #[test]
+    fn run_status_row_shows_reviewed_never() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        items::create(&ws, Category::Project, "my-project", "# My Project\n").unwrap();
+
+        let output = run_status(&ws).unwrap();
+
+        assert!(output.contains("reviewed: never"));
+    }
+
+    #[test]
+    fn run_status_area_row_shows_reviewed_days_ago() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let today = chrono::Local::now().date_naive();
+        let last_reviewed = today - chrono::Duration::days(4);
+
+        items::create(
+            &ws,
+            Category::Area,
+            "finances",
+            &format!(
+                "---\nlast_reviewed: {}\n---\n# Finances\n",
+                last_reviewed.format("%Y-%m-%d")
+            ),
+        )
+        .unwrap();
+
+        let output = run_status(&ws).unwrap();
+
+        assert!(output.contains("reviewed: 4 days ago"));
     }
 }

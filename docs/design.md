@@ -276,25 +276,28 @@ structured results — no printing, no prompting.
   common dependency rather than depending on each other, per the module
   boundaries below.
 - `status(ws: &Workspace) -> Result<StatusReport>` where
-  `StatusReport { counts: [usize; 5] }` — `counts` is per-category totals in
-  `Category` order, computed by a private `count` that scans the same
-  directories `list` does but skips the content read/`infer_title` call
-  entirely. Implemented per
-  [009-status-counts.md](lld/009-status-counts.md) (`status.md` 001).
+  `StatusReport { counts: [usize; 5], projects: Vec<StatusItem>, areas:
+  Vec<StatusItem> }` — `counts` is per-category totals in `Category` order,
+  computed by a private `count` that scans the same directories `list` does
+  but skips the content read/`infer_title` call entirely
+  ([009-status-counts.md](lld/009-status-counts.md), `status.md` 001).
+  `projects`/`areas` are sorted alphabetically by `name` (same convention as
+  `list`) — implemented per [010-status-per-item.md](lld/010-status-per-item.md)
+  (`status.md` 002–003).
 - `struct StatusItem { name: String, title: String, updated_days_ago: u64, reviewed_days_ago: Option<u64> }`
   — one per `Project`/`Area`; `name`/`title`/`updated_days_ago` mirror
   `ListedItem` (same `infer_title` + mtime sourcing); `reviewed_days_ago` is
   the age of the item's `index.md` frontmatter `last_reviewed` field, or
-  `None` if the field is absent (never reviewed). Lands with `status.md` 002,
-  along with `StatusReport` gaining `projects: Vec<StatusItem>, areas:
-  Vec<StatusItem>` fields (sorted alphabetically by `name`, same convention
-  as `list`). There is no staleness threshold or flagging — `status` reports
-  the `updated_days_ago`/`reviewed_days_ago` facts and leaves judgment to the
-  user.
-- `read_last_reviewed(ws: &Workspace, item: &Path) -> Result<Option<u64>>` —
-  reads the `last_reviewed` frontmatter field from a `Project`/`Area`'s
-  `index.md`, if present, and returns its age in days. Shared by `status`
-  (read) and `review` (read, to decide whether to overwrite on `[k]eep`).
+  `None` if the field is absent (never reviewed). There is no staleness
+  threshold or flagging — `status` reports the `updated_days_ago`/
+  `reviewed_days_ago` facts and leaves judgment to the user.
+- `read_last_reviewed(item: &Path) -> Result<Option<u64>>` — reads the
+  `last_reviewed` frontmatter field from a `Project`/`Area`'s `index.md`, if
+  present, and returns its age in days. Not called by `status` (which reads
+  `last_reviewed` from content it already has, via a private
+  `parse_last_reviewed` shared with this function); exists as the fresh-read
+  entry point `review` (read, to decide whether to overwrite on `[k]eep`)
+  will call.
 - `write_last_reviewed(ws: &Workspace, item: &Path) -> Result<()>` — sets the
   `index.md` frontmatter's `last_reviewed` field to today's date, adding the
   field if absent and preserving every other frontmatter key and the body

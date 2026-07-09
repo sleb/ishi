@@ -203,11 +203,18 @@ fn list_at(
 
 /// Per-category item counts, indexed by `Category as usize` (same
 /// convention as `Config::category_dirs`). Doesn't read file content or
-/// infer titles — see `count`. The per-item `projects`/`areas` breakdown
-/// documented as `StatusReport`'s eventual shape in design.md lands with
-/// `status.md` 002; this is the counts-only slice.
+/// infer titles — see `count`.
 pub struct StatusReport {
     pub counts: [usize; 5],
+    pub projects: Vec<StatusItem>,
+    pub areas: Vec<StatusItem>,
+}
+
+pub struct StatusItem {
+    pub name: String,
+    pub title: String,
+    pub updated_days_ago: u64,
+    pub reviewed_days_ago: Option<u64>,
 }
 
 /// Counts `category`'s items without reading file content — cheaper than
@@ -232,10 +239,17 @@ fn count(ws: &Workspace, category: Category) -> Result<usize, ItemsError> {
     }
 }
 
-/// Builds the per-category counts summary for `tk status` (`status.md`
-/// 001). Counts-only slice of `StatusReport`'s eventual shape — see
-/// `StatusReport`.
+/// Builds the per-category counts summary for `tk status`, plus the
+/// per-item breakdown for `Project`/`Area` (`status.md` 001–003).
 pub fn status(ws: &Workspace) -> Result<StatusReport, ItemsError> {
+    status_at(ws, SystemTime::now(), chrono::Local::now().date_naive())
+}
+
+fn status_at(
+    ws: &Workspace,
+    now: SystemTime,
+    today: chrono::NaiveDate,
+) -> Result<StatusReport, ItemsError> {
     let categories = [
         Category::Inbox,
         Category::Project,
@@ -249,7 +263,87 @@ pub fn status(ws: &Workspace) -> Result<StatusReport, ItemsError> {
         counts[category as usize] = count(ws, category)?;
     }
 
-    Ok(StatusReport { counts })
+    let projects = status_items_for(ws, Category::Project, now, today)?;
+    let areas = status_items_for(ws, Category::Area, now, today)?;
+
+    Ok(StatusReport {
+        counts,
+        projects,
+        areas,
+    })
+}
+
+/// Builds the sorted per-item breakdown for a directory-style category
+/// (`Project`/`Area` only — the only categories `status` shows rows for).
+fn status_items_for(
+    ws: &Workspace,
+    category: Category,
+    now: SystemTime,
+    today: chrono::NaiveDate,
+) -> Result<Vec<StatusItem>, ItemsError> {
+    let extension = &ws.config.default_extension;
+    let category_dir = ws.category_dir(category);
+    let mut items = Vec::new();
+    for (name, source_path) in scan_dir(&category_dir, true, extension)? {
+        items.push(build_status_item(name, &source_path, now, today)?);
+    }
+    items.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(items)
+}
+
+/// Mirrors `build_listed_item` (same title inference, same mtime-based
+/// `updated_days_ago`) plus `reviewed_days_ago`.
+fn build_status_item(
+    name: String,
+    source_path: &std::path::Path,
+    now: SystemTime,
+    today: chrono::NaiveDate,
+) -> Result<StatusItem, ItemsError> {
+    let content = fs::read_to_string(source_path)?;
+    let title = infer_title(&content).unwrap_or_else(|| name.clone());
+    let modified = fs::metadata(source_path)?.modified()?;
+    let updated_days_ago = now.duration_since(modified).unwrap_or_default().as_secs() / 86400;
+    let reviewed_days_ago = parse_last_reviewed(source_path, &content, today);
+
+    Ok(StatusItem {
+        name,
+        title,
+        updated_days_ago,
+        reviewed_days_ago,
+    })
+}
+
+/// Parses the `last_reviewed` frontmatter field from `content`, if
+/// present, and returns its age in days relative to `today`. Pure — no
+/// I/O — so `build_status_item` (content already in hand) and
+/// `read_last_reviewed` (fresh read from disk) share it without a second
+/// file read in the `status` path.
+fn parse_last_reviewed(
+    path: &std::path::Path,
+    content: &str,
+    today: chrono::NaiveDate,
+) -> Option<u64> {
+    let note = gist::parser::parse(path, content);
+    let value = note
+        .frontmatter?
+        .fields
+        .iter()
+        .find(|f| f.key == "last_reviewed")?
+        .value
+        .clone()?;
+    let date = chrono::NaiveDate::parse_from_str(&value, "%Y-%m-%d").ok()?;
+    Some((today - date).num_days().max(0) as u64)
+}
+
+/// Fresh-read entry point for `last_reviewed`, independent of `status`
+/// (which reuses `parse_last_reviewed` on content it already read).
+pub fn read_last_reviewed(item: &std::path::Path) -> Result<Option<u64>, ItemsError> {
+    let content = fs::read_to_string(item)?;
+    Ok(parse_last_reviewed(
+        item,
+        &content,
+        chrono::Local::now().date_naive(),
+    ))
 }
 
 #[cfg(test)]
@@ -684,5 +778,156 @@ mod tests {
         let report = status(&ws).unwrap();
 
         assert_eq!(report.counts, [0, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn status_at_projects_sorted_alphabetically_with_updated_days_ago() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        let path1 = create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            "# Website Redesign\n",
+        )
+        .unwrap();
+        set_mtime(&path1, 2, now);
+        let path2 = create(&ws, Category::Project, "my-project", "# My Project\n").unwrap();
+        set_mtime(&path2, 21, now);
+
+        let report = status_at(
+            &ws,
+            now,
+            chrono::NaiveDate::from_ymd_opt(2026, 7, 8).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(report.projects.len(), 2);
+        assert_eq!(report.projects[0].name, "my-project");
+        assert_eq!(report.projects[0].updated_days_ago, 21);
+        assert_eq!(report.projects[1].name, "website-redesign");
+        assert_eq!(report.projects[1].updated_days_ago, 2);
+    }
+
+    #[test]
+    fn status_at_areas_listed_the_same_way() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        create(&ws, Category::Area, "health", "# Health\n").unwrap();
+
+        let report = status_at(
+            &ws,
+            now,
+            chrono::NaiveDate::from_ymd_opt(2026, 7, 8).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(report.areas.len(), 1);
+        assert_eq!(report.areas[0].name, "health");
+        assert_eq!(report.areas[0].updated_days_ago, 0);
+    }
+
+    #[test]
+    fn status_at_project_title_falls_back_to_name_when_no_heading() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+
+        create(&ws, Category::Project, "quick-idea", "no heading here").unwrap();
+
+        let report = status_at(
+            &ws,
+            now,
+            chrono::NaiveDate::from_ymd_opt(2026, 7, 8).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(report.projects[0].title, "quick-idea");
+    }
+
+    #[test]
+    fn parse_last_reviewed_returns_age_in_days_when_present() {
+        let content = "---\nlast_reviewed: 2026-07-05\n---\n# Title\n";
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 7, 8).unwrap();
+
+        let result = parse_last_reviewed(std::path::Path::new("index.md"), content, today);
+
+        assert_eq!(result, Some(3));
+    }
+
+    #[test]
+    fn parse_last_reviewed_returns_none_when_field_absent() {
+        let content = "---\ntitle: Something\n---\n# Title\n";
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 7, 8).unwrap();
+
+        let result = parse_last_reviewed(std::path::Path::new("index.md"), content, today);
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn parse_last_reviewed_returns_none_when_no_frontmatter() {
+        let content = "# Title\nplain content\n";
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 7, 8).unwrap();
+
+        let result = parse_last_reviewed(std::path::Path::new("index.md"), content, today);
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn parse_last_reviewed_returns_none_on_malformed_date() {
+        let content = "---\nlast_reviewed: not-a-date\n---\n# Title\n";
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 7, 8).unwrap();
+
+        let result = parse_last_reviewed(std::path::Path::new("index.md"), content, today);
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn read_last_reviewed_reads_fresh_from_disk() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let today = chrono::Local::now().date_naive();
+        let last_reviewed = today - chrono::Duration::days(4);
+        let content = format!(
+            "---\nlast_reviewed: {}\n---\n# Title\n",
+            last_reviewed.format("%Y-%m-%d")
+        );
+
+        let path = create(&ws, Category::Project, "my-project", &content).unwrap();
+
+        let result = read_last_reviewed(&path).unwrap();
+
+        assert_eq!(result, Some(4));
+    }
+
+    #[test]
+    fn status_at_wires_reviewed_days_ago_into_status_item() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let now = fixed_now();
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 7, 8).unwrap();
+
+        create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            "---\nlast_reviewed: 2026-07-05\n---\n# Website Redesign\n",
+        )
+        .unwrap();
+        create(&ws, Category::Project, "my-project", "# My Project\n").unwrap();
+
+        let report = status_at(&ws, now, today).unwrap();
+
+        assert_eq!(report.projects[0].name, "my-project");
+        assert_eq!(report.projects[0].reviewed_days_ago, None);
+        assert_eq!(report.projects[1].name, "website-redesign");
+        assert_eq!(report.projects[1].reviewed_days_ago, Some(3));
     }
 }
