@@ -12,6 +12,14 @@ use crate::workspace::Workspace;
 pub enum ItemsError {
     #[error(transparent)]
     Io(#[from] io::Error),
+    #[error(
+        "unwrapping a directory item into a flat file is not yet supported (moving \"{name}\" from {from} to {to})"
+    )]
+    UnwrapNotSupported {
+        name: String,
+        from: &'static str,
+        to: &'static str,
+    },
 }
 
 /// Computes the path `create` would write to, without touching the
@@ -388,9 +396,13 @@ pub fn locate(ws: &Workspace, name: &str) -> Result<Option<(Category, PathBuf)>,
 }
 
 /// Moves `source_path` (an item already located by `locate`, in category
-/// `source`, named `name`) to `target`. Three shapes, decided purely from
-/// `source`/`target`'s `is_directory_style`/`Archive`-ness — no scenario
-/// in move.md 001 needs anything finer-grained than this:
+/// `source`, named `name`) to `target`. Rejects unwrapping a directory item
+/// (`Project`/`Area`) into a flat-file category (`Inbox`/`Resource`) up
+/// front, before touching the filesystem (move.md 002) — archiving a
+/// directory is not unwrapping, so `target == Archive` is exempt. Otherwise
+/// three shapes, decided purely from `source`/`target`'s
+/// `is_directory_style`/`Archive`-ness — no scenario in move.md 001 needs
+/// anything finer-grained than this:
 ///
 /// - `target` is directory-style and `source` isn't: **wrap** —
 ///   `<target_dir>/<name>/index.<default_extension>`.
@@ -414,6 +426,14 @@ pub fn mv(
     name: &str,
     target: Category,
 ) -> Result<PathBuf, ItemsError> {
+    if source.is_directory_style() && !target.is_directory_style() && target != Category::Archive {
+        return Err(ItemsError::UnwrapNotSupported {
+            name: name.to_string(),
+            from: source.display_name(),
+            to: target.display_name(),
+        });
+    }
+
     let basename = |source_path: &std::path::Path| -> PathBuf {
         if source.is_directory_style() {
             PathBuf::from(name)
@@ -1227,6 +1247,98 @@ mod tests {
 
         assert_eq!(dest, dir.path().join("4-Archive/Resources/my-file.md"));
         assert_eq!(fs::read_to_string(&dest).unwrap(), "hello");
+    }
+
+    #[test]
+    fn mv_rejects_unwrapping_project_into_inbox() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = create(&ws, Category::Project, "website-redesign", "").unwrap();
+        let source_dir = source_path.parent().unwrap().to_path_buf();
+
+        let err = mv(
+            &ws,
+            Category::Project,
+            &source_dir,
+            "website-redesign",
+            Category::Inbox,
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, ItemsError::UnwrapNotSupported { .. }));
+        assert!(source_dir.is_dir());
+    }
+
+    #[test]
+    fn mv_rejects_unwrapping_project_into_resource() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = create(&ws, Category::Project, "website-redesign", "").unwrap();
+        let source_dir = source_path.parent().unwrap().to_path_buf();
+
+        let err = mv(
+            &ws,
+            Category::Project,
+            &source_dir,
+            "website-redesign",
+            Category::Resource,
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, ItemsError::UnwrapNotSupported { .. }));
+        assert!(source_dir.is_dir());
+    }
+
+    #[test]
+    fn mv_rejects_unwrapping_area_into_inbox() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = create(&ws, Category::Area, "my-area", "").unwrap();
+        let source_dir = source_path.parent().unwrap().to_path_buf();
+
+        let err = mv(&ws, Category::Area, &source_dir, "my-area", Category::Inbox).unwrap_err();
+
+        assert!(matches!(err, ItemsError::UnwrapNotSupported { .. }));
+        assert!(source_dir.is_dir());
+    }
+
+    #[test]
+    fn mv_rejects_unwrapping_area_into_resource() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = create(&ws, Category::Area, "my-area", "").unwrap();
+        let source_dir = source_path.parent().unwrap().to_path_buf();
+
+        let err = mv(
+            &ws,
+            Category::Area,
+            &source_dir,
+            "my-area",
+            Category::Resource,
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, ItemsError::UnwrapNotSupported { .. }));
+        assert!(source_dir.is_dir());
+    }
+
+    #[test]
+    fn mv_allows_archiving_a_directory_item() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = create(&ws, Category::Project, "website-redesign", "").unwrap();
+        let source_dir = source_path.parent().unwrap().to_path_buf();
+
+        let dest = mv(
+            &ws,
+            Category::Project,
+            &source_dir,
+            "website-redesign",
+            Category::Archive,
+        )
+        .unwrap();
+
+        assert_eq!(dest, dir.path().join("4-Archive/Projects/website-redesign"));
     }
 
     #[test]

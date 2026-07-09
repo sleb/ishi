@@ -59,7 +59,7 @@
 ## User Story 002
 
 - **Summary:** Get a clear error instead of a silent guess when unwrapping a directory item isn't supported
-- **Status:** Not started
+- **Status:** ✅
 - **Depends on:** [new.md](new.md) Story 003, Story 004 (project/area scaffolding — the directory items this rejection applies to)
 
 ### Use Case

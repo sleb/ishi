@@ -1593,6 +1593,23 @@ mod tests {
     }
 
     #[test]
+    fn run_move_rejects_unwrapping_project_into_inbox() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        items::create(&ws, Category::Project, "website-redesign", "# Site\n").unwrap();
+
+        let err = run_move(&ws, "website-redesign", Category::Inbox).unwrap_err();
+
+        assert!(err.to_string().contains("not yet supported"));
+        assert!(
+            dir.path()
+                .join("1-Projects/website-redesign/index.md")
+                .is_file()
+        );
+        assert!(!dir.path().join("0-Inbox/website-redesign.md").exists());
+    }
+
+    #[test]
     fn run_status_area_row_shows_reviewed_days_ago() {
         let dir = tempdir().unwrap();
         let ws = workspace(dir.path());
