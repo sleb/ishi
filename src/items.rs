@@ -346,6 +346,90 @@ pub fn read_last_reviewed(item: &std::path::Path) -> Result<Option<u64>, ItemsEr
     ))
 }
 
+/// Searches `Category::archivable()` (`Inbox`, `Project`, `Area`,
+/// `Resource`, in that order) for an item named `name`, returning the
+/// category it was found in and its actual on-disk root path — the
+/// directory itself for a directory-style category (not its `index.md`),
+/// or the file itself (with whatever extension it actually has, not
+/// necessarily `ws.config.default_extension`) for a flat category.
+/// `Ok(None)` if no category has a match; never searches `Archive`.
+pub fn locate(ws: &Workspace, name: &str) -> Result<Option<(Category, PathBuf)>, ItemsError> {
+    for category in Category::archivable() {
+        let dir = ws.category_dir(category);
+        if category.is_directory_style() {
+            let candidate = dir.join(name);
+            if candidate.is_dir() {
+                return Ok(Some((category, candidate)));
+            }
+        } else {
+            for (entry_name, path) in scan_dir(&dir, false, &ws.config.default_extension)? {
+                if entry_name == name {
+                    return Ok(Some((category, path)));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Moves `source_path` (an item already located by `locate`, in category
+/// `source`, named `name`) to `target`. Three shapes, decided purely from
+/// `source`/`target`'s `is_directory_style`/`Archive`-ness — no scenario
+/// in move.md 001 needs anything finer-grained than this:
+///
+/// - `target` is directory-style and `source` isn't: **wrap** —
+///   `<target_dir>/<name>/index.<default_extension>`.
+/// - `target` is `Archive`: **archive** — `<archive_dir>/
+///   <source.archive_origin_name()>/<basename>`, `basename` being `name`
+///   for a directory source or `source_path`'s actual filename for a flat
+///   one. Applies uniformly whether `source` is directory-style or flat.
+/// - Anything else (matching shapes, e.g. `Project`<->`Area`, or
+///   `Inbox`<->`Resource`): **relocate as-is** — same `basename` rule as
+///   the archive case, just under `<target_dir>` with no origin
+///   subfolder.
+///
+/// `basename` reuses `source_path`'s real filename (not a
+/// recomputed-from-`name` one) for flat sources so an item's original
+/// extension survives a relocate untouched, matching `locate`'s own
+/// extension-agnostic lookup.
+pub fn mv(
+    ws: &Workspace,
+    source: Category,
+    source_path: &std::path::Path,
+    name: &str,
+    target: Category,
+) -> Result<PathBuf, ItemsError> {
+    let basename = |source_path: &std::path::Path| -> PathBuf {
+        if source.is_directory_style() {
+            PathBuf::from(name)
+        } else {
+            PathBuf::from(
+                source_path
+                    .file_name()
+                    .expect("located item has a file name"),
+            )
+        }
+    };
+
+    let dest = if target.is_directory_style() && !source.is_directory_style() {
+        ws.category_dir(target)
+            .join(name)
+            .join(format!("index.{}", ws.config.default_extension))
+    } else if target == Category::Archive {
+        ws.category_dir(Category::Archive)
+            .join(source.archive_origin_name())
+            .join(basename(source_path))
+    } else {
+        ws.category_dir(target).join(basename(source_path))
+    };
+
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::rename(source_path, &dest)?;
+    Ok(dest)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -905,6 +989,183 @@ mod tests {
         let result = read_last_reviewed(&path).unwrap();
 
         assert_eq!(result, Some(4));
+    }
+
+    #[test]
+    fn locate_finds_flat_item_in_inbox_by_name_any_extension() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let path = create(&ws, Category::Inbox, "my-file", "hello").unwrap();
+
+        let result = locate(&ws, "my-file").unwrap();
+
+        assert_eq!(result, Some((Category::Inbox, path)));
+    }
+
+    #[test]
+    fn locate_finds_directory_item_in_project_by_name() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        create(&ws, Category::Project, "website-redesign", "").unwrap();
+
+        let result = locate(&ws, "website-redesign").unwrap();
+
+        assert_eq!(
+            result,
+            Some((
+                Category::Project,
+                dir.path().join("1-Projects/website-redesign")
+            ))
+        );
+    }
+
+    #[test]
+    fn locate_returns_none_when_no_category_has_a_match() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let result = locate(&ws, "nonexistent").unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn locate_searches_inbox_before_project_area_resource() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        create(&ws, Category::Resource, "my-item", "").unwrap();
+        create(&ws, Category::Inbox, "my-item", "").unwrap();
+
+        let result = locate(&ws, "my-item").unwrap();
+
+        assert_eq!(result.unwrap().0, Category::Inbox);
+    }
+
+    #[test]
+    fn mv_wraps_flat_file_into_project() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = create(&ws, Category::Inbox, "my-file", "hello").unwrap();
+
+        let dest = mv(
+            &ws,
+            Category::Inbox,
+            &source_path,
+            "my-file",
+            Category::Project,
+        )
+        .unwrap();
+
+        assert_eq!(dest, dir.path().join("1-Projects/my-file/index.md"));
+        assert_eq!(fs::read_to_string(&dest).unwrap(), "hello");
+    }
+
+    #[test]
+    fn mv_wraps_flat_file_into_area() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = create(&ws, Category::Inbox, "my-file", "hello").unwrap();
+
+        let dest = mv(
+            &ws,
+            Category::Inbox,
+            &source_path,
+            "my-file",
+            Category::Area,
+        )
+        .unwrap();
+
+        assert_eq!(dest, dir.path().join("2-Areas/my-file/index.md"));
+        assert_eq!(fs::read_to_string(&dest).unwrap(), "hello");
+    }
+
+    #[test]
+    fn mv_relocates_flat_file_without_wrapping_extension_preserved() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = create(&ws, Category::Resource, "my-file", "hello").unwrap();
+
+        let dest = mv(
+            &ws,
+            Category::Resource,
+            &source_path,
+            "my-file",
+            Category::Inbox,
+        )
+        .unwrap();
+
+        assert_eq!(dest, dir.path().join("0-Inbox/my-file.md"));
+        assert!(!dest.parent().unwrap().join("my-file").is_dir());
+    }
+
+    #[test]
+    fn mv_relocates_directory_between_project_and_area_as_is() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            "# Website Redesign\n",
+        )
+        .unwrap();
+        let extra_file = source_path.parent().unwrap().join("notes.md");
+        fs::write(&extra_file, "extra").unwrap();
+        let source_dir = source_path.parent().unwrap().to_path_buf();
+
+        let dest = mv(
+            &ws,
+            Category::Project,
+            &source_dir,
+            "website-redesign",
+            Category::Area,
+        )
+        .unwrap();
+
+        assert_eq!(dest, dir.path().join("2-Areas/website-redesign"));
+        assert_eq!(
+            fs::read_to_string(dest.join("index.md")).unwrap(),
+            "# Website Redesign\n"
+        );
+        assert_eq!(fs::read_to_string(dest.join("notes.md")).unwrap(), "extra");
+    }
+
+    #[test]
+    fn mv_archives_directory_under_origin_subfolder() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = create(&ws, Category::Project, "website-redesign", "").unwrap();
+        let source_dir = source_path.parent().unwrap().to_path_buf();
+
+        let dest = mv(
+            &ws,
+            Category::Project,
+            &source_dir,
+            "website-redesign",
+            Category::Archive,
+        )
+        .unwrap();
+
+        assert_eq!(dest, dir.path().join("4-Archive/Projects/website-redesign"));
+    }
+
+    #[test]
+    fn mv_archives_flat_file_under_origin_subfolder() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = create(&ws, Category::Resource, "my-file", "hello").unwrap();
+
+        let dest = mv(
+            &ws,
+            Category::Resource,
+            &source_path,
+            "my-file",
+            Category::Archive,
+        )
+        .unwrap();
+
+        assert_eq!(dest, dir.path().join("4-Archive/Resources/my-file.md"));
+        assert_eq!(fs::read_to_string(&dest).unwrap(), "hello");
     }
 
     #[test]

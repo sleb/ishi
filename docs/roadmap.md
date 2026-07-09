@@ -7,7 +7,7 @@
 | `init`        | Done                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `new`         | Done — all of user-stories/new.md 001–013 completed, including per-category templates (`daily`/`project`/`area`/`resource`), `{{time}}`/`{{uuid}}` placeholders, and editor-capture with no filename into `--project`/`--area`/`--resource` (story 010)                                                                                                                                                                          |
 | `daily`       | Done                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `move`        | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `move`        | Story 001 done (per [docs/lld/012-tk-move.md](lld/012-tk-move.md)); Story 002 (unwrap-rejection guard) remaining                                                                                                                                                                                                                                                                                                              |
 | `archive`     | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `list`        | Stories 001, 002, 003, 005 done (base NAME/TITLE/UPDATED columns, archive qualified naming, substring filter, Title-falls-back-to-Name); 004 (empty-category message) remaining                                                                                                                                                                                                                                                                          |
 | `status`      | Stories 001–003 done (per-category counts per [docs/lld/009-status-counts.md](lld/009-status-counts.md); per-item Project/Area rows with `updated:`/`reviewed:` per [docs/lld/010-status-per-item.md](lld/010-status-per-item.md)); 004 remaining, blocked on `review`/`move`                                                                                                                                                       |
@@ -176,6 +176,15 @@ More involved: wrapping a flat file into a directory when moving into
 to `archive`. `mv` is an alias for `move`, same as `ls` is for `list`. No
 dependents among items 3–5, but **item 7 (`review`) calls `items::mv`
 directly** per `docs/design.md`, so it has to land before review.
+
+Story 001 (relocating an item that already exists in a known category) is
+done, per [docs/lld/012-tk-move.md](lld/012-tk-move.md). Story 002
+(rejecting an unwrap of a `Project`/`Area` directory into `inbox`/
+`resource`) remains — 012's `items::mv`, as built, does not special-case
+that combination: it falls into the generic "relocate as-is" branch and
+would silently move the whole directory under the flat category instead of
+erroring. Story 002's LLD must add a guard before that branch runs, ahead
+of `archive` (item 6b) and `review` (item 7) building on top of `mv`.
 
 - Covers user-stories/move.md 001–002.
 

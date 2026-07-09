@@ -5,7 +5,7 @@
 ## User Story 001
 
 - **Summary:** Moving an item relocates it to the target category, wrapping into a directory or preserving origin as needed
-- **Status:** Not started
+- **Status:** ✅
 - **Depends on:** [new.md](new.md) Story 002, Story 003, Story 004 (items to move must exist first)
 
 ### Use Case

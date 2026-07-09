@@ -252,10 +252,20 @@ structured results — no printing, no prompting.
   with `{{title}}` set to `name` before calling `create`, so every creation
   path (interactive editor capture and non-interactive named creation
   alike) writes the right template rather than a raw string.
-- `mv(ws: &Workspace, item: &Path, target: Category) -> Result<PathBuf>` —
-  moves a file or project/area directory; wraps a flat file into a new
-  directory when moving into `Project`/`Area`; when moving to `Archive`,
-  preserves the item's origin category as a subfolder.
+- `locate(ws: &Workspace, name: &str) -> Result<Option<(Category, PathBuf)>>`
+  — searches `Category::archivable()` (`Inbox`, `Project`, `Area`,
+  `Resource`, in that order; never `Archive`) for an item named `name`,
+  returning the category it was found in and its actual on-disk root path.
+  `Ok(None)` if no category has a match. Introduced by
+  [012-tk-move.md](lld/012-tk-move.md) so `cli::run_move` can resolve
+  `tk move <name> <target>`'s bare name to a source category before
+  calling `mv`.
+- `mv(ws: &Workspace, source: Category, source_path: &Path, name: &str, target: Category) -> Result<PathBuf>`
+  — moves a file or project/area directory (already located by `locate`)
+  to `target`; wraps a flat file into a new directory when moving into
+  `Project`/`Area`; when moving to `Archive`, preserves the item's origin
+  category as a subfolder. Relocating between matching shapes (e.g.
+  `Project`<->`Area`, `Inbox`<->`Resource`) moves the item as-is.
 - `struct ListedItem { name: String, title: String, updated_days_ago: u64 }` —
   `name` is the dir/file name (`<OriginCategory>/<name>` for `Archive`);
   `title` comes from `infer_title` below, falling back to `name` if it
@@ -419,6 +429,12 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
   `Created {display}` only when created and `Opening $EDITOR...`
   unconditionally. See `docs/lld/007-config-edit.md`. Bare `tk config`
   (provenance display) is still open.
+- `run_move(ws: &Workspace, name: &str, target: Category) -> Result<String>`
+  — locates `name` via `items::locate`, moves it to `target` via
+  `items::mv`, and returns `"Moved {source} to {dest}"`. Errors if no item
+  named `name` is found. No `Ui` involved — `move` is fully
+  non-interactive. Backs `main`'s `Commands::Move { name, target }`
+  dispatch (`mv` alias). See `docs/lld/012-tk-move.md`.
 
 ## Notes
 

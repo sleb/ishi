@@ -306,6 +306,23 @@ fn render_status_items(items: &[items::StatusItem]) -> Vec<String> {
         .collect()
 }
 
+/// Locates `name` via `items::locate`, moves it to `target` via
+/// `items::mv`, and returns the exact confirmation message `main` prints:
+/// `Moved <source path> to <dest path>` (move.md 001's message shape,
+/// paths rendered the same way `run_new`'s `Created <path>` does — full
+/// paths as returned by the filesystem calls, not user-relative
+/// shorthand).
+pub fn run_move(ws: &Workspace, name: &str, target: Category) -> anyhow::Result<String> {
+    let (source, source_path) = items::locate(ws, name)?
+        .ok_or_else(|| anyhow::anyhow!("No item named \"{name}\" found"))?;
+    let dest_path = items::mv(ws, source, &source_path, name, target)?;
+    Ok(format!(
+        "Moved {} to {}",
+        source_path.display(),
+        dest_path.display()
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1520,6 +1537,31 @@ mod tests {
         let output = run_status(&ws).unwrap();
 
         assert!(output.contains("reviewed: never"));
+    }
+
+    #[test]
+    fn run_move_returns_moved_message() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let source_path = items::create(&ws, Category::Inbox, "my-file", "hello").unwrap();
+
+        let message = run_move(&ws, "my-file", Category::Project).unwrap();
+
+        let dest_path = dir.path().join("1-Projects/my-file/index.md");
+        assert_eq!(
+            message,
+            format!("Moved {} to {}", source_path.display(), dest_path.display())
+        );
+    }
+
+    #[test]
+    fn run_move_errors_when_no_item_matches_name() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let err = run_move(&ws, "nonexistent", Category::Project).unwrap_err();
+
+        assert!(err.to_string().contains("nonexistent"));
     }
 
     #[test]

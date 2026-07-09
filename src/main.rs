@@ -44,6 +44,30 @@ enum Commands {
     Completions { shell: CompletionShell },
     /// Print a per-category summary of the PARA system.
     Status,
+    /// Relocate an item to a different category.
+    #[command(alias = "mv")]
+    Move { name: String, target: MoveTarget },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, clap::ValueEnum)]
+enum MoveTarget {
+    Project,
+    Area,
+    Resource,
+    Inbox,
+    Archive,
+}
+
+impl From<MoveTarget> for Category {
+    fn from(target: MoveTarget) -> Self {
+        match target {
+            MoveTarget::Project => Category::Project,
+            MoveTarget::Area => Category::Area,
+            MoveTarget::Resource => Category::Resource,
+            MoveTarget::Inbox => Category::Inbox,
+            MoveTarget::Archive => Category::Archive,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, clap::ValueEnum)]
@@ -240,6 +264,12 @@ fn main() -> anyhow::Result<()> {
             let output = cli::run_status(&ws)?;
             println!("{output}");
         }
+        Commands::Move { name, target } => {
+            let ws = Workspace::discover(&cwd, home_config.as_deref())
+                .context("failed to find a PARA workspace")?;
+            let message = cli::run_move(&ws, &name, target.into())?;
+            println!("{message}");
+        }
     }
 
     Ok(())
@@ -359,6 +389,32 @@ mod tests {
         let cli = Cli::parse_from(["tk", "status"]);
 
         assert_eq!(cli.command, Commands::Status);
+    }
+
+    #[test]
+    fn parses_move() {
+        let cli = Cli::parse_from(["tk", "move", "my-file", "project"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Move {
+                name: "my-file".to_string(),
+                target: MoveTarget::Project,
+            }
+        );
+    }
+
+    #[test]
+    fn parses_mv_alias() {
+        let cli = Cli::parse_from(["tk", "mv", "my-file", "archive"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Move {
+                name: "my-file".to_string(),
+                target: MoveTarget::Archive,
+            }
+        );
     }
 
     #[test]
