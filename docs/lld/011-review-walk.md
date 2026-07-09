@@ -27,9 +27,10 @@ redesign.
 
 ### Out of scope
 
-- What `[a]rchive` actually does to the filesystem (review.md 002) — needs
-  `items::mv`, which doesn't exist yet (`mv` is roadmap item 6, not
-  started). Separate LLD.
+- What `[a]rchive` actually does to the filesystem (review.md 002) — calls
+  `items::mv`, which now exists ([012-tk-move.md](012-tk-move.md), per
+  [move.md](../user-stories/move.md) Story 001). Still a separate LLD: this
+  one covers only the walk, not `[a]rchive`'s effects.
 - What `[k]eep`/`[s]kip` do to `last_reviewed` frontmatter (review.md 003)
   — needs `items::write_last_reviewed`, which also doesn't exist yet.
   Separate LLD.
@@ -252,8 +253,9 @@ Commands::Review => {
    printed output).
 6. Mark review.md Story 001 `✅`.
 7. Update `docs/roadmap.md`'s `review` row and dependency-graph note (item
-   7) to reflect story 001 done, 002/003 remaining and now known to be
-   blocked on `mv`/`write_last_reviewed` respectively.
+   7) to reflect story 001 done; 002 remaining (unblocked, `items::mv`
+   already lands per item 6) and 003 remaining (blocked on
+   `items::write_last_reviewed`, which doesn't exist yet).
 8. Manual smoke test: in a scratch PARA system with two projects and one
    area, run `tk review`, confirm the walk order, header wording, and that
    it exits cleanly after the last prompt; then run it again against an

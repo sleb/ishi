@@ -12,7 +12,7 @@ order, the per-item prompt, and what `[a]rchive` does to the filesystem.
 ## User Story 001
 
 - **Summary:** `review` walks every project, then every area, each sorted alphabetically by name
-- **Status:** Not started
+- **Status:** ✅
 - **Depends on:** [new.md](new.md) Story 003, Story 004 (projects/areas to walk)
 
 ### Use Case

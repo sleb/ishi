@@ -19,7 +19,17 @@ pub enum UiError {
 
 pub trait Ui {
     fn confirm(&mut self, prompt: &str, default: &str) -> Result<String, UiError>;
-    fn choose(&mut self, prompt: &str, options: &[&str]) -> Result<char, UiError>;
+
+    /// `header` is printed on its own line; `options` are rendered as
+    /// `[c]est  [c]est...`, joined by two spaces with no space before the
+    /// trailing `?` — e.g. `[k]eep  [a]rchive  [s]kip?` (review.md 001
+    /// scenarios 2-3's exact prompt shape). Loops on unrecognized input the
+    /// same way the previous single-bracket form did.
+    fn choose(&mut self, header: &str, options: &[(char, &str)]) -> Result<char, UiError>;
+
+    /// A plain informational line, no prompt/response — currently only
+    /// `review`'s "Nothing to review." message (review.md 001 scenario 4).
+    fn info(&mut self, message: &str);
 }
 
 pub struct TerminalUi;
@@ -39,22 +49,28 @@ impl Ui for TerminalUi {
         }
     }
 
-    fn choose(&mut self, prompt: &str, options: &[&str]) -> Result<char, UiError> {
+    fn choose(&mut self, header: &str, options: &[(char, &str)]) -> Result<char, UiError> {
+        println!("{header}");
+        let rendered = options
+            .iter()
+            .map(|(c, rest)| format!("[{c}]{rest}"))
+            .collect::<Vec<_>>()
+            .join("  ");
         loop {
-            print!("{prompt} [{}] ", options.join("/"));
+            print!("  {rendered}? ");
             io::stdout().flush()?;
-
             let mut input = String::new();
             io::stdin().read_line(&mut input)?;
-            let trimmed = input.trim().to_lowercase();
-            if let Some(choice) = trimmed.chars().next()
-                && options
-                    .iter()
-                    .any(|o| o.to_lowercase() == choice.to_string())
+            if let Some(choice) = input.trim().to_lowercase().chars().next()
+                && options.iter().any(|(c, _)| *c == choice)
             {
                 return Ok(choice);
             }
         }
+    }
+
+    fn info(&mut self, message: &str) {
+        println!("{message}");
     }
 }
 
@@ -355,7 +371,11 @@ mod tests {
             Ok(self.confirm_response.clone())
         }
 
-        fn choose(&mut self, _prompt: &str, _options: &[&str]) -> Result<char, UiError> {
+        fn choose(&mut self, _header: &str, _options: &[(char, &str)]) -> Result<char, UiError> {
+            unimplemented!("not exercised by `new` story 001")
+        }
+
+        fn info(&mut self, _message: &str) {
             unimplemented!("not exercised by `new` story 001")
         }
     }
@@ -571,7 +591,15 @@ mod tests {
                 Ok(default.to_string())
             }
 
-            fn choose(&mut self, _prompt: &str, _options: &[&str]) -> Result<char, UiError> {
+            fn choose(
+                &mut self,
+                _header: &str,
+                _options: &[(char, &str)],
+            ) -> Result<char, UiError> {
+                unimplemented!("not exercised by this test")
+            }
+
+            fn info(&mut self, _message: &str) {
                 unimplemented!("not exercised by this test")
             }
         }

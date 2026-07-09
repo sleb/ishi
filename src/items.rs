@@ -273,6 +273,21 @@ fn status_at(
     })
 }
 
+/// Sorted alphabetically by name; same mtime-sourced `updated_days_ago`
+/// and title inference as `status`'s per-item rows. Reuses
+/// `StatusItem`/`status_items_for` rather than a second directory-scan
+/// implementation — review's prompt only needs `name`/`updated_days_ago`
+/// today, but `title`/`reviewed_days_ago` come along for free and story
+/// 003's `[k]eep` path will want the same fresh-content read regardless.
+pub fn review_items(ws: &Workspace, category: Category) -> Result<Vec<StatusItem>, ItemsError> {
+    status_items_for(
+        ws,
+        category,
+        SystemTime::now(),
+        chrono::Local::now().date_naive(),
+    )
+}
+
 /// Builds the sorted per-item breakdown for a directory-style category
 /// (`Project`/`Area` only — the only categories `status` shows rows for).
 fn status_items_for(
@@ -971,6 +986,52 @@ mod tests {
         let result = parse_last_reviewed(std::path::Path::new("index.md"), content, today);
 
         assert_eq!(result, None);
+    }
+
+    fn backdate(path: &std::path::Path, days_ago: u64) {
+        let modified = SystemTime::now() - std::time::Duration::from_secs(days_ago * 86400);
+        let file = fs::File::open(path).unwrap();
+        file.set_modified(modified).unwrap();
+    }
+
+    #[test]
+    fn review_items_returns_project_rows_sorted_alphabetically_with_updated_days_ago() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let path1 = create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            "# Website Redesign\n",
+        )
+        .unwrap();
+        backdate(&path1, 2);
+        let path2 = create(&ws, Category::Project, "my-project", "# My Project\n").unwrap();
+        backdate(&path2, 21);
+
+        let items = review_items(&ws, Category::Project).unwrap();
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].name, "my-project");
+        assert_eq!(items[0].updated_days_ago, 21);
+        assert_eq!(items[1].name, "website-redesign");
+        assert_eq!(items[1].updated_days_ago, 2);
+    }
+
+    #[test]
+    fn review_items_returns_the_same_shape_for_area() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let path = create(&ws, Category::Area, "finances", "# Finances\n").unwrap();
+        backdate(&path, 4);
+
+        let items = review_items(&ws, Category::Area).unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "finances");
+        assert_eq!(items[0].updated_days_ago, 4);
     }
 
     #[test]

@@ -11,7 +11,7 @@
 | `archive`     | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `list`        | Stories 001, 002, 003, 005 done (base NAME/TITLE/UPDATED columns, archive qualified naming, substring filter, Title-falls-back-to-Name); 004 (empty-category message) remaining                                                                                                                                                                                                                                                                          |
 | `status`      | Stories 001–003 done (per-category counts per [docs/lld/009-status-counts.md](lld/009-status-counts.md); per-item Project/Area rows with `updated:`/`reviewed:` per [docs/lld/010-status-per-item.md](lld/010-status-per-item.md)); 004 remaining, blocked on `review`/`move`                                                                                                                                                       |
-| `review`      | Not started (module stub only in `docs/design.md`)                                                                                                                                                                                                                                                                                                                                                                               |
+| `review`      | Story 001 done (per [docs/lld/011-review-walk.md](lld/011-review-walk.md)); Stories 002/003 remaining — 002 (`[a]rchive`) unblocked now that `items::mv` exists, 003 (`[k]eep`/`[s]kip` frontmatter) blocked on `items::write_last_reviewed`                                                                                                                                                                                     |
 | `config`      | Layering done, and `config init`/`config init -g`/`config edit`/`config edit -g`/`#:schema` file are implemented — bare `tk config` (provenance display) is still open                                                                                                                                                                                                                                                |
 | `completions` | Done — `tk completions bash`/`zsh`/`fish`/`powershell`, per [docs/lld/008-completions.md](lld/008-completions.md)                                                                                                                                                                                                                                                                                                               |
 
@@ -210,7 +210,16 @@ move) and item 4 (title inference for the summary default).
 
 Composes `move` (item 6) with the `Ui` trait already defined in `src/cli.rs`
 (`confirm`/`choose` are implemented and tested via `run_init`/`run_new`), plus
-`items::write_last_reviewed` (item 5) on `[k]eep`. Blocked on items 5 and 6.
+`items::write_last_reviewed` (item 5) on `[k]eep`.
+
+Story 001 (the walk itself — order, per-item prompt, empty/end-of-walk
+messaging) is done, per
+[docs/lld/011-review-walk.md](lld/011-review-walk.md); along the way `Ui::choose`
+was reshaped to a two-line header+options form and gained `Ui::info`, its
+first real callers. Story 002 (`[a]rchive` calling `items::mv`) is unblocked
+now that item 6 has landed; Story 003 (`[k]eep`/`[s]kip` writing
+`last_reviewed`) remains blocked on `items::write_last_reviewed`, which
+doesn't exist yet.
 
 - Covers user-stories/review.md 001–003.
 

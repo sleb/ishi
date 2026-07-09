@@ -8,6 +8,7 @@ use clap::{Args, CommandFactory, Parser, Subcommand};
 use tick::category::{Category, Kind};
 use tick::cli::{self, TerminalUi};
 use tick::editor::RealEditor;
+use tick::review;
 use tick::workspace::Workspace;
 
 #[derive(Parser)]
@@ -47,6 +48,8 @@ enum Commands {
     /// Relocate an item to a different category.
     #[command(alias = "mv")]
     Move { name: String, target: MoveTarget },
+    /// Walk every project and area, prompting keep/archive/skip.
+    Review,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, clap::ValueEnum)]
@@ -270,6 +273,12 @@ fn main() -> anyhow::Result<()> {
             let message = cli::run_move(&ws, &name, target.into())?;
             println!("{message}");
         }
+        Commands::Review => {
+            let ws = Workspace::discover(&cwd, home_config.as_deref())
+                .context("failed to find a PARA workspace")?;
+            let mut ui = TerminalUi;
+            review::run(&ws, &mut ui)?;
+        }
     }
 
     Ok(())
@@ -415,6 +424,13 @@ mod tests {
                 target: MoveTarget::Archive,
             }
         );
+    }
+
+    #[test]
+    fn parses_review() {
+        let cli = Cli::parse_from(["tk", "review"]);
+
+        assert_eq!(cli.command, Commands::Review);
     }
 
     #[test]
