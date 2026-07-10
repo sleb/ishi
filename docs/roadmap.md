@@ -6,18 +6,18 @@ provenance notes, not live links.
 
 ## Status snapshot (as of this doc)
 
-| Command       | State                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init`        | Done                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `new`         | Done — all of user-stories/new.md 001–013 completed, including per-category templates (`daily`/`project`/`area`/`resource`), `{{time}}`/`{{uuid}}` placeholders, and editor-capture with no filename into `--project`/`--area`/`--resource` (story 010)                                                                                                                                                                          |
-| `daily`       | Done                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `move`        | Done — Stories 001–002 complete, per `docs/lld/012-tk-move.md` (Story 001) and the unwrap-rejection guard added directly to `items::mv` (Story 002) |
-| `archive`     | Not started                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `list`        | Done — Stories 001–005 complete (base NAME/TITLE/UPDATED columns, archive qualified naming, substring filter, empty-category message, Title-falls-back-to-Name) |
-| `status`      | Stories 001–004 done (per-category counts per `docs/lld/009-status-counts.md`; per-item Project/Area rows with `updated:`/`reviewed:` per `docs/lld/010-status-per-item.md`; `last_reviewed` write side per `docs/lld/013-review-keep-archive-skip.md`)                                                                                 |
-| `review`      | Done — Stories 001–003 complete, per `docs/lld/011-review-walk.md` and `docs/lld/013-review-keep-archive-skip.md`                                                                                                                                                                                                                                                    |
-| `config`      | Done — layering, `config init`/`config init -g`/`config edit`/`config edit -g`/`#:schema` file, and bare `tk config` (provenance display) are all implemented                                                                                                                                                                                                                                                |
-| `completions` | Done — `tk completions bash`/`zsh`/`fish`/`powershell`, per `docs/lld/008-completions.md`                                                                                                                                                                                                                                                                                                               |
+| Command       | State                                                                                                                                                                                                                                                   |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init`        | Done                                                                                                                                                                                                                                                    |
+| `new`         | Done — all of user-stories/new.md 001–013 completed, including per-category templates (`daily`/`project`/`area`/`resource`), `{{time}}`/`{{uuid}}` placeholders, and editor-capture with no filename into `--project`/`--area`/`--resource` (story 010) |
+| `daily`       | Done                                                                                                                                                                                                                                                    |
+| `move`        | Done — Stories 001–002 complete, per `docs/lld/012-tk-move.md` (Story 001) and the unwrap-rejection guard added directly to `items::mv` (Story 002)                                                                                                     |
+| `archive`     | Not started                                                                                                                                                                                                                                             |
+| `list`        | Done — Stories 001–005 complete (base NAME/TITLE/UPDATED columns, archive qualified naming, substring filter, empty-category message, Title-falls-back-to-Name)                                                                                         |
+| `status`      | Stories 001–004 done (per-category counts per `docs/lld/009-status-counts.md`; per-item Project/Area rows with `updated:`/`reviewed:` per `docs/lld/010-status-per-item.md`; `last_reviewed` write side per `docs/lld/013-review-keep-archive-skip.md`) |
+| `review`      | Done — Stories 001–003 complete, per `docs/lld/011-review-walk.md` and `docs/lld/013-review-keep-archive-skip.md`                                                                                                                                       |
+| `config`      | Done — layering, `config init`/`config init -g`/`config edit`/`config edit -g`/`#:schema` file, and bare `tk config` (provenance display) are all implemented                                                                                           |
+| `completions` | Done — `tk completions bash`/`zsh`/`fish`/`powershell`, per `docs/lld/008-completions.md`                                                                                                                                                               |
 
 ## Dependency graph
 
@@ -27,21 +27,21 @@ naming convention; see the footnote after the diagram for two cross-references
 that are docs-only and deliberately _not_ drawn here).
 
 ```
-                    init (done)
-                              |
+                            init (done)
+                                |
         +-----------------------+-----------------------+
-        |                                                |
-        v                                                v
+        |                                               |
+        v                                               v
  1.  new (done)                                   9. completions (done)
         |
      +--+------------+------------+
      |               |            |
      v               v            v
- 4. list (done)  6. move (done)  2. config layering
-     |               |       + templates (done)
-     v               |         /            \
- 5. status (done)    |        v              v
-     |               |    3. daily (done) 8. config CLI (done)
+ 4. list (done)  6. move (done)  2. config layering + templates (done)
+     |               |                      /            \
+     v               |                     v              v
+ 5. status (done)    |                 3. daily (done) 8. config CLI (done)
+     |               |
      +-------+-------+
              |         \
              v          v
@@ -222,7 +222,7 @@ editor-exclude and `CLAUDE.md` writers isn't decided yet — not sketched in
 written; needs an LLD pass before implementation. Depends on item 6 (the
 move) and item 4 (title inference for the summary default).
 
-- Covers user-stories/archive.md 001–004.
+- Covers user-stories/move.md 003–006.
 
 ## Later
 
