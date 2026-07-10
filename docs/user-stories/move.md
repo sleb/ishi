@@ -3,19 +3,18 @@
 `mv` is an alias for `move`.
 
 `tk archive <item>` is sugar for `tk move <item> archive` — a shorter, more
-memorable way to file something away. But the whole point of having an
-archive instead of just deleting things is that it stays *out of the way*
-until you actually need it: your editor's fuzzy-find shouldn't surface it,
-and an agent reading your notes shouldn't burn context on it unless you
-specifically ask. So beyond the move itself, moving an item to `archive`
-is also responsible for keeping two low-friction affordances up to date
-every time it runs: editor exclude config, and an agent-facing instruction
-file. It also stamps a one-line summary into the item being archived, so
-an agent that does have a reason to look can get the gist without reading
-the whole note. These affordances (Stories 004-006) live on `tk move`
-itself, specific to the `archive` destination, rather than on the `tk
-archive` alias — so `tk archive` gets them for free, without needing its
-own wiring beyond delegating to `move`.
+memorable way to file something away. Moving an item to `archive` also
+stamps a one-line summary into the item being archived (Story 004), so an
+agent that does have a reason to look can get the gist without reading
+the whole note. This affordance lives on `tk move` itself, specific to
+the `archive` destination, rather than on the `tk archive` alias — so `tk
+archive` gets it for free, without needing its own wiring beyond
+delegating to `move`.
+
+(Keeping the archive out of the way of the editor's fuzzy-find and of an
+agent's context — via editor exclude config and a `CLAUDE.md` instruction
+— is set up once, at `tk init` time, instead of on every archiving move.
+See [init.md](init.md) Stories 005-006.)
 
 ## User Story 001
 
@@ -137,93 +136,6 @@ own wiring beyond delegating to `move`.
 ---
 
 ## User Story 004
-
-- **Summary:** Moving an item to `archive` keeps the archive folder excluded from editor fuzzy-find/quick-open, for both VS Code and Zed
-- **Status:** Not started
-- **Depends on:** Story 001 (runs as part of the same command)
-
-### Use Case
-
-- **As a** Tick user who uses Zed (and sometimes VS Code)
-- **I want to** never see archived items pop up when I hit cmd+P to jump to a file
-- **so that** the archive can keep growing without cluttering the one thing I use constantly to navigate my notes
-
-### Acceptance Criteria
-
-- **Scenario:** First move to `archive` in a workspace creates a Zed exclude entry
-- **Given:** I am inside an initialized PARA system with no `.zed/settings.json`
-- **When:** I run `tk move my-file archive`
-- **Then:** Tick creates `.zed/settings.json` with `file_scan_exclude` containing the configured archive folder name (`4-Archive` by default)
-
-- **Scenario:** First move to `archive` in a workspace creates a VS Code exclude entry
-- **Given:** I am inside an initialized PARA system with no `.vscode/settings.json`
-- **When:** I run `tk move my-file archive`
-- **Then:** Tick creates `.vscode/settings.json` with both `files.exclude` and `search.exclude` mapping the configured archive folder name to `true`
-
-- **Scenario:** Existing editor settings are preserved, not overwritten
-- **Given:** I am inside an initialized PARA system with a `.zed/settings.json` that already sets `"tab_size": 4` and a `.vscode/settings.json` that already sets `"editor.fontSize": 14`
-- **When:** I run `tk move my-file archive`
-- **Then:** both files still contain their pre-existing settings unchanged, with the exclude entries merged in alongside them
-
-- **Scenario:** Moving another item to `archive` doesn't duplicate the exclude entry
-- **Given:** I am inside an initialized PARA system where a previous `tk move ... archive` run already added the exclude entries to both editors' settings
-- **When:** I run `tk move <another-item> archive`
-- **Then:** `file_scan_exclude` in `.zed/settings.json` still lists the archive folder name exactly once, and `files.exclude`/`search.exclude` in `.vscode/settings.json` still each have exactly one entry for it
-
-- **Scenario:** A custom archive folder name from `.tick.toml` is what gets excluded, not the default
-- **Given:** I am inside an initialized PARA system whose `.tick.toml` sets `[folders] archive = "9-Attic"`
-- **When:** I run `tk move my-file archive`
-- **Then:** the exclude entries written to `.zed/settings.json` and `.vscode/settings.json` name `9-Attic`, not `4-Archive`
-
-- **Scenario:** Moving an item to a category other than `archive` doesn't touch editor exclude config
-- **Given:** I am inside an initialized PARA system with no `.zed/settings.json` or `.vscode/settings.json`
-- **When:** I run `tk move my-file project`
-- **Then:** neither file is created — this affordance is specific to the `archive` destination
-
----
-
-## User Story 005
-
-- **Summary:** Moving an item to `archive` ensures a `CLAUDE.md` instruction tells agents to leave the archive alone unless asked
-- **Status:** Not started
-- **Depends on:** Story 001 (runs as part of the same command)
-
-### Use Case
-
-- **As a** Tick user who works in this PARA system alongside an AI agent
-- **I want to** have my agent skip reading the archive by default
-- **so that** the agent's context stays focused on what's active, the same way the archive already stays out of my own editor's way
-
-### Acceptance Criteria
-
-- **Scenario:** First move to `archive` in a workspace creates `CLAUDE.md` with the instruction
-- **Given:** I am inside an initialized PARA system with no `CLAUDE.md`
-- **When:** I run `tk move my-file archive`
-- **Then:** Tick creates a `CLAUDE.md` at the workspace root containing an instruction not to read files under the configured archive folder (`4-Archive` by default) unless the user explicitly asks or there's a strong, specific reason to
-
-- **Scenario:** An existing `CLAUDE.md` without the instruction gets it appended
-- **Given:** I am inside an initialized PARA system with a `CLAUDE.md` that has unrelated content and no archive instruction
-- **When:** I run `tk move my-file archive`
-- **Then:** Tick appends the archive instruction as its own section, leaving the existing content unchanged above it
-
-- **Scenario:** An existing `CLAUDE.md` that already has the instruction is left untouched
-- **Given:** I am inside an initialized PARA system whose `CLAUDE.md` already contains the archive instruction
-- **When:** I run `tk move my-file archive`
-- **Then:** `CLAUDE.md` is not modified — no duplicate section is appended
-
-- **Scenario:** A custom archive folder name is what the instruction names
-- **Given:** I am inside an initialized PARA system whose `.tick.toml` sets `[folders] archive = "9-Attic"`, with no `CLAUDE.md` yet
-- **When:** I run `tk move my-file archive`
-- **Then:** the instruction Tick writes names `9-Attic`, not `4-Archive`
-
-- **Scenario:** Moving an item to a category other than `archive` doesn't touch `CLAUDE.md`
-- **Given:** I am inside an initialized PARA system with no `CLAUDE.md`
-- **When:** I run `tk move my-file project`
-- **Then:** no `CLAUDE.md` is created — this affordance is specific to the `archive` destination
-
----
-
-## User Story 006
 
 - **Summary:** Moving an item to `archive` stamps a one-line summary into its frontmatter before moving it
 - **Status:** ✅

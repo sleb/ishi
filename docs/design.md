@@ -453,18 +453,24 @@ wrapper, since `resolve` already returns a `thiserror` error and
   Errors if no item named `name` is found. When `target ==
   Category::Archive`, prompts for a summary via `ui.confirm` (defaulting
   per `items::summary_default`) and stamps it via `items::write_summary`
-  before the move (move.md Story 006, done — see
+  before the move (move.md Story 004, done — see
   `docs/lld/014-archive-summary-stamp.md`). For any other `target`, `ui` is
   threaded through but unused — no prompt, no stamp, exactly as
   non-interactive as before. Backs `main`'s `Commands::Move { name,
-  target }` dispatch (`mv` alias). See `docs/lld/012-tk-move.md`. move.md
-  Stories 004 (editor quick-open excludes) and 005 (`CLAUDE.md`
-  instruction) are still not started — they'll trigger on the same
-  `target == Category::Archive` branch point as the summary stamp. `tk
+  target }` dispatch (`mv` alias). See `docs/lld/012-tk-move.md`. `tk
   archive <item>` (move.md Story 003, not started) is planned as a thin
   `Commands::Archive { name }` alias dispatching straight to this same
-  `run_move(ws, &mut ui, &name, Category::Archive)`, so it inherits those
-  affordances for free rather than duplicating them.
+  `run_move(ws, &mut ui, &name, Category::Archive)`, so it inherits the
+  summary stamp for free rather than duplicating it.
+- `run_init` (see above) is also where init.md Stories 005 (editor
+  quick-open excludes for the configured archive folder) and 006
+  (`CLAUDE.md` archive instruction) will trigger, not `run_move` — both
+  are still not started, and create their file only if it doesn't already
+  exist; if it does, `run_init` prints instructions for the user to
+  update it manually instead of merging into unknown-shape content.
+  Module ownership for those writers isn't decided yet — not sketched
+  here — since neither existed before these stories were written; needs
+  an LLD pass before implementation.
 
 ## Notes
 

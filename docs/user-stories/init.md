@@ -97,3 +97,88 @@
 - **When:** I run `tk init <name>`
 - **Then:** Tick treats it the same as any other existing directory: it creates whichever of the five category folders are missing, and leaves the unrelated contents untouched (see Story 003)
 - **and Then:** Tick does **not** treat the unrelated contents as an error
+
+---
+
+## User Story 005
+
+- **Summary:** Initializing a PARA system sets up editor exclude config for the archive folder, for both VS Code and Zed
+- **Status:** Not started
+- **Depends on:** Story 001, Story 002 (creates settings alongside whichever target init scaffolds)
+
+### Use Case
+
+- **As a** Tick user setting up a new PARA system
+- **I want to** have `init` configure my editor to skip the archive folder in fuzzy-find/quick-open
+- **so that** the archive stays out of my way from the start, without me needing to configure it myself or wait until I first archive something
+
+### Acceptance Criteria
+
+- **Scenario:** `init` creates a Zed exclude entry when none exists
+- **Given:** the target directory (current directory, or `./<name>` if given) has no `.zed/settings.json`
+- **When:** I run `tk init` (with or without a name)
+- **Then:** Tick creates `.zed/settings.json` at the target with `file_scan_exclude` containing the configured archive folder name (`4-Archive` by default)
+
+- **Scenario:** `init` creates a VS Code exclude entry when none exists
+- **Given:** the target directory has no `.vscode/settings.json`
+- **When:** I run `tk init` (with or without a name)
+- **Then:** Tick creates `.vscode/settings.json` at the target with both `files.exclude` and `search.exclude` mapping the configured archive folder name to `true`
+
+- **Scenario:** An existing `.zed/settings.json` is left untouched, with instructions printed instead
+- **Given:** the target directory already has a `.zed/settings.json` (with any contents)
+- **When:** I run `tk init`
+- **Then:** Tick does not modify `.zed/settings.json`
+- **and Then:** Tick prints instructions telling me to manually add the configured archive folder name to `file_scan_exclude` in `.zed/settings.json`
+
+- **Scenario:** An existing `.vscode/settings.json` is left untouched, with instructions printed instead
+- **Given:** the target directory already has a `.vscode/settings.json` (with any contents)
+- **When:** I run `tk init`
+- **Then:** Tick does not modify `.vscode/settings.json`
+- **and Then:** Tick prints instructions telling me to manually add the configured archive folder name to `files.exclude`/`search.exclude` in `.vscode/settings.json`
+
+- **Scenario:** A custom archive folder name from `.tick.toml` is what gets referenced
+- **Given:** the target's `.tick.toml` sets `[folders] archive = "9-Attic"`, with no `.zed/settings.json` or `.vscode/settings.json` yet
+- **When:** I run `tk init`
+- **Then:** the exclude entries Tick creates name `9-Attic`, not `4-Archive`
+
+- **Scenario:** Re-running `init` when the settings files already exist keeps printing instructions
+- **Given:** `.zed/settings.json` and `.vscode/settings.json` already exist at the target (from a previous `tk init` run or created manually)
+- **When:** I run `tk init` again
+- **Then:** Tick makes no changes to either file, and prints the same manual-update instructions again
+
+---
+
+## User Story 006
+
+- **Summary:** Initializing a PARA system creates a `CLAUDE.md` instructing agents to leave the archive alone unless asked
+- **Status:** Not started
+- **Depends on:** Story 001, Story 002 (creates the file alongside whichever target init scaffolds)
+
+### Use Case
+
+- **As a** Tick user who works in this PARA system alongside an AI agent
+- **I want to** have `init` set up `CLAUDE.md` telling my agent to skip the archive by default
+- **so that** the agent's context stays focused on what's active from the moment I set up the system, not just after I've run my first archiving move
+
+### Acceptance Criteria
+
+- **Scenario:** `init` creates `CLAUDE.md` with the instruction when none exists
+- **Given:** the target directory (current directory, or `./<name>` if given) has no `CLAUDE.md`
+- **When:** I run `tk init` (with or without a name)
+- **Then:** Tick creates a `CLAUDE.md` at the target root containing an instruction not to read files under the configured archive folder (`4-Archive` by default) unless the user explicitly asks or there's a strong, specific reason to
+
+- **Scenario:** An existing `CLAUDE.md` is left untouched, with instructions printed instead
+- **Given:** the target directory already has a `CLAUDE.md` (with or without the archive instruction)
+- **When:** I run `tk init`
+- **Then:** Tick does not modify `CLAUDE.md`
+- **and Then:** Tick prints instructions telling me to manually add the archive-skip instruction to `CLAUDE.md`, naming the configured archive folder
+
+- **Scenario:** A custom archive folder name is what the generated instruction names
+- **Given:** the target's `.tick.toml` sets `[folders] archive = "9-Attic"`, with no `CLAUDE.md` yet
+- **When:** I run `tk init`
+- **Then:** the instruction Tick writes names `9-Attic`, not `4-Archive`
+
+- **Scenario:** Re-running `init` when `CLAUDE.md` already exists keeps printing instructions
+- **Given:** `CLAUDE.md` already exists at the target (from a previous `tk init` run or created manually)
+- **When:** I run `tk init` again
+- **Then:** Tick doesn't modify it, and prints the same manual-update instructions again
