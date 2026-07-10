@@ -447,12 +447,24 @@ prints `config::render_effective(&config, &origins)` directly — no `cli`
 wrapper, since `resolve` already returns a `thiserror` error and
 `render_effective` is infallible pure formatting.
 
-- `run_move(ws: &Workspace, name: &str, target: Category) -> Result<String>`
-  — locates `name` via `items::locate`, moves it to `target` via
-  `items::mv`, and returns `"Moved {source} to {dest}"`. Errors if no item
-  named `name` is found. No `Ui` involved — `move` is fully
-  non-interactive. Backs `main`'s `Commands::Move { name, target }`
-  dispatch (`mv` alias). See `docs/lld/012-tk-move.md`.
+- `run_move(ws: &Workspace, ui: &mut dyn Ui, name: &str, target: Category)
+  -> Result<String>` — locates `name` via `items::locate`, moves it to
+  `target` via `items::mv`, and returns `"Moved {source} to {dest}"`.
+  Errors if no item named `name` is found. When `target ==
+  Category::Archive`, prompts for a summary via `ui.confirm` (defaulting
+  per `items::summary_default`) and stamps it via `items::write_summary`
+  before the move (move.md Story 006, done — see
+  `docs/lld/014-archive-summary-stamp.md`). For any other `target`, `ui` is
+  threaded through but unused — no prompt, no stamp, exactly as
+  non-interactive as before. Backs `main`'s `Commands::Move { name,
+  target }` dispatch (`mv` alias). See `docs/lld/012-tk-move.md`. move.md
+  Stories 004 (editor quick-open excludes) and 005 (`CLAUDE.md`
+  instruction) are still not started — they'll trigger on the same
+  `target == Category::Archive` branch point as the summary stamp. `tk
+  archive <item>` (move.md Story 003, not started) is planned as a thin
+  `Commands::Archive { name }` alias dispatching straight to this same
+  `run_move(ws, &mut ui, &name, Category::Archive)`, so it inherits those
+  affordances for free rather than duplicating them.
 
 ## Notes
 

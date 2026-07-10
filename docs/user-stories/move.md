@@ -7,12 +7,15 @@ memorable way to file something away. But the whole point of having an
 archive instead of just deleting things is that it stays *out of the way*
 until you actually need it: your editor's fuzzy-find shouldn't surface it,
 and an agent reading your notes shouldn't burn context on it unless you
-specifically ask. So beyond the move itself, `tk archive` is also
-responsible for keeping two low-friction affordances up to date every time
-it runs: editor exclude config, and an agent-facing instruction file. It
-also stamps a one-line summary into the item being archived, so an agent
-that does have a reason to look can get the gist without reading the whole
-note.
+specifically ask. So beyond the move itself, moving an item to `archive`
+is also responsible for keeping two low-friction affordances up to date
+every time it runs: editor exclude config, and an agent-facing instruction
+file. It also stamps a one-line summary into the item being archived, so
+an agent that does have a reason to look can get the gist without reading
+the whole note. These affordances (Stories 004-006) live on `tk move`
+itself, specific to the `archive` destination, rather than on the `tk
+archive` alias — so `tk archive` gets them for free, without needing its
+own wiring beyond delegating to `move`.
 
 ## User Story 001
 
@@ -135,9 +138,9 @@ note.
 
 ## User Story 004
 
-- **Summary:** `tk archive` keeps the archive folder excluded from editor fuzzy-find/quick-open, for both VS Code and Zed
+- **Summary:** Moving an item to `archive` keeps the archive folder excluded from editor fuzzy-find/quick-open, for both VS Code and Zed
 - **Status:** Not started
-- **Depends on:** Story 003 (runs as part of the same command)
+- **Depends on:** Story 001 (runs as part of the same command)
 
 ### Use Case
 
@@ -147,38 +150,43 @@ note.
 
 ### Acceptance Criteria
 
-- **Scenario:** First archive in a workspace creates a Zed exclude entry
+- **Scenario:** First move to `archive` in a workspace creates a Zed exclude entry
 - **Given:** I am inside an initialized PARA system with no `.zed/settings.json`
-- **When:** I run `tk archive my-file`
+- **When:** I run `tk move my-file archive`
 - **Then:** Tick creates `.zed/settings.json` with `file_scan_exclude` containing the configured archive folder name (`4-Archive` by default)
 
-- **Scenario:** First archive in a workspace creates a VS Code exclude entry
+- **Scenario:** First move to `archive` in a workspace creates a VS Code exclude entry
 - **Given:** I am inside an initialized PARA system with no `.vscode/settings.json`
-- **When:** I run `tk archive my-file`
+- **When:** I run `tk move my-file archive`
 - **Then:** Tick creates `.vscode/settings.json` with both `files.exclude` and `search.exclude` mapping the configured archive folder name to `true`
 
 - **Scenario:** Existing editor settings are preserved, not overwritten
 - **Given:** I am inside an initialized PARA system with a `.zed/settings.json` that already sets `"tab_size": 4` and a `.vscode/settings.json` that already sets `"editor.fontSize": 14`
-- **When:** I run `tk archive my-file`
+- **When:** I run `tk move my-file archive`
 - **Then:** both files still contain their pre-existing settings unchanged, with the exclude entries merged in alongside them
 
-- **Scenario:** Running `tk archive` again doesn't duplicate the exclude entry
-- **Given:** I am inside an initialized PARA system where a previous `tk archive` run already added the exclude entries to both editors' settings
-- **When:** I run `tk archive` again on a different item
+- **Scenario:** Moving another item to `archive` doesn't duplicate the exclude entry
+- **Given:** I am inside an initialized PARA system where a previous `tk move ... archive` run already added the exclude entries to both editors' settings
+- **When:** I run `tk move <another-item> archive`
 - **Then:** `file_scan_exclude` in `.zed/settings.json` still lists the archive folder name exactly once, and `files.exclude`/`search.exclude` in `.vscode/settings.json` still each have exactly one entry for it
 
 - **Scenario:** A custom archive folder name from `.tick.toml` is what gets excluded, not the default
 - **Given:** I am inside an initialized PARA system whose `.tick.toml` sets `[folders] archive = "9-Attic"`
-- **When:** I run `tk archive my-file`
+- **When:** I run `tk move my-file archive`
 - **Then:** the exclude entries written to `.zed/settings.json` and `.vscode/settings.json` name `9-Attic`, not `4-Archive`
+
+- **Scenario:** Moving an item to a category other than `archive` doesn't touch editor exclude config
+- **Given:** I am inside an initialized PARA system with no `.zed/settings.json` or `.vscode/settings.json`
+- **When:** I run `tk move my-file project`
+- **Then:** neither file is created — this affordance is specific to the `archive` destination
 
 ---
 
 ## User Story 005
 
-- **Summary:** `tk archive` ensures a `CLAUDE.md` instruction tells agents to leave the archive alone unless asked
+- **Summary:** Moving an item to `archive` ensures a `CLAUDE.md` instruction tells agents to leave the archive alone unless asked
 - **Status:** Not started
-- **Depends on:** Story 003 (runs as part of the same command)
+- **Depends on:** Story 001 (runs as part of the same command)
 
 ### Use Case
 
@@ -188,33 +196,38 @@ note.
 
 ### Acceptance Criteria
 
-- **Scenario:** First archive in a workspace creates `CLAUDE.md` with the instruction
+- **Scenario:** First move to `archive` in a workspace creates `CLAUDE.md` with the instruction
 - **Given:** I am inside an initialized PARA system with no `CLAUDE.md`
-- **When:** I run `tk archive my-file`
+- **When:** I run `tk move my-file archive`
 - **Then:** Tick creates a `CLAUDE.md` at the workspace root containing an instruction not to read files under the configured archive folder (`4-Archive` by default) unless the user explicitly asks or there's a strong, specific reason to
 
 - **Scenario:** An existing `CLAUDE.md` without the instruction gets it appended
 - **Given:** I am inside an initialized PARA system with a `CLAUDE.md` that has unrelated content and no archive instruction
-- **When:** I run `tk archive my-file`
+- **When:** I run `tk move my-file archive`
 - **Then:** Tick appends the archive instruction as its own section, leaving the existing content unchanged above it
 
 - **Scenario:** An existing `CLAUDE.md` that already has the instruction is left untouched
 - **Given:** I am inside an initialized PARA system whose `CLAUDE.md` already contains the archive instruction
-- **When:** I run `tk archive my-file`
+- **When:** I run `tk move my-file archive`
 - **Then:** `CLAUDE.md` is not modified — no duplicate section is appended
 
 - **Scenario:** A custom archive folder name is what the instruction names
 - **Given:** I am inside an initialized PARA system whose `.tick.toml` sets `[folders] archive = "9-Attic"`, with no `CLAUDE.md` yet
-- **When:** I run `tk archive my-file`
+- **When:** I run `tk move my-file archive`
 - **Then:** the instruction Tick writes names `9-Attic`, not `4-Archive`
+
+- **Scenario:** Moving an item to a category other than `archive` doesn't touch `CLAUDE.md`
+- **Given:** I am inside an initialized PARA system with no `CLAUDE.md`
+- **When:** I run `tk move my-file project`
+- **Then:** no `CLAUDE.md` is created — this affordance is specific to the `archive` destination
 
 ---
 
 ## User Story 006
 
-- **Summary:** `tk archive` stamps a one-line summary into the item's frontmatter before moving it
-- **Status:** Not started
-- **Depends on:** Story 003 (the move this happens alongside), [list.md](list.md) Story 005 (the Title-inference this reuses for the default)
+- **Summary:** Moving an item to `archive` stamps a one-line summary into its frontmatter before moving it
+- **Status:** ✅
+- **Depends on:** Story 001 (the move this happens alongside), [list.md](list.md) Story 005 (the Title-inference this reuses for the default)
 
 ### Use Case
 
@@ -224,23 +237,28 @@ note.
 
 ### Acceptance Criteria
 
-- **Scenario:** Archiving prompts for a summary, defaulting to the item's inferred title
+- **Scenario:** Moving to `archive` prompts for a summary, defaulting to the item's inferred title
 - **Given:** I am inside an initialized PARA system with a project `website-redesign` whose `index.md` has no `summary` frontmatter field and a first heading of `# Website Redesign`
-- **When:** I run `tk archive website-redesign`
+- **When:** I run `tk move website-redesign archive`
 - **Then:** Tick prompts `Summary for website-redesign?` with a default of `Website Redesign`
 - **and Then:** if I accept the default, `index.md`'s frontmatter is stamped with `summary: Website Redesign` before the move
 
 - **Scenario:** A custom summary overwrites the prompt's default
 - **Given:** I am inside an initialized PARA system with a resource `my-file.md`
-- **When:** I run `tk archive my-file` and type `Old pricing notes, superseded by the 2026 plan` at the summary prompt
+- **When:** I run `tk move my-file archive` and type `Old pricing notes, superseded by the 2026 plan` at the summary prompt
 - **Then:** `my-file.md`'s frontmatter is stamped with `summary: Old pricing notes, superseded by the 2026 plan`, not the inferred title
 
 - **Scenario:** An item that already has a `summary` field offers it as the default instead of the inferred title
 - **Given:** I am inside an initialized PARA system with an area `health` whose `index.md` already has `summary: Fitness and nutrition tracking`
-- **When:** I run `tk archive health`
+- **When:** I run `tk move health archive`
 - **Then:** Tick prompts with a default of `Fitness and nutrition tracking`, not the inferred title
 
 - **Scenario:** Stamping the summary preserves every other frontmatter field and the body
 - **Given:** I am inside an initialized PARA system with a project `website-redesign` whose `index.md` has a `last_reviewed` field and body content
-- **When:** I run `tk archive website-redesign` and accept the default summary
+- **When:** I run `tk move website-redesign archive` and accept the default summary
 - **Then:** `last_reviewed` and the body are unchanged in the moved `index.md` — only `summary` is added
+
+- **Scenario:** Moving an item to a category other than `archive` doesn't prompt for a summary
+- **Given:** I am inside an initialized PARA system with a resource `my-file.md`
+- **When:** I run `tk move my-file project`
+- **Then:** Tick doesn't prompt for a summary, and no `summary` frontmatter field is added — this affordance is specific to the `archive` destination

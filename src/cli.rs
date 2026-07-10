@@ -327,10 +327,26 @@ fn render_status_items(items: &[items::StatusItem]) -> Vec<String> {
 /// `Moved <source path> to <dest path>` (move.md 001's message shape,
 /// paths rendered the same way `run_new`'s `Created <path>` does — full
 /// paths as returned by the filesystem calls, not user-relative
-/// shorthand).
-pub fn run_move(ws: &Workspace, name: &str, target: Category) -> anyhow::Result<String> {
+/// shorthand). When `target == Category::Archive`, prompts for a summary
+/// (defaulting per `items::summary_default`) and stamps it via
+/// `items::write_summary` before the move — the summary must land in the
+/// item's frontmatter before `mv` relocates it (move.md 006). For any other
+/// `target`, no prompt, no stamp (move.md 006 scenario 5).
+pub fn run_move(
+    ws: &Workspace,
+    ui: &mut dyn Ui,
+    name: &str,
+    target: Category,
+) -> anyhow::Result<String> {
     let (source, source_path) = items::locate(ws, name)?
         .ok_or_else(|| anyhow::anyhow!("No item named \"{name}\" found"))?;
+
+    if target == Category::Archive {
+        let default = items::summary_default(&source_path, source, name)?;
+        let summary = ui.confirm(&format!("Summary for {name}?"), &default)?;
+        items::write_summary(&source_path, source, &summary)?;
+    }
+
     let dest_path = items::mv(ws, source, &source_path, name, target)?;
     Ok(format!(
         "Moved {} to {}",
@@ -1572,8 +1588,11 @@ mod tests {
         let dir = tempdir().unwrap();
         let ws = workspace(dir.path());
         let source_path = items::create(&ws, Category::Inbox, "my-file", "hello").unwrap();
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
 
-        let message = run_move(&ws, "my-file", Category::Project).unwrap();
+        let message = run_move(&ws, &mut ui, "my-file", Category::Project).unwrap();
 
         let dest_path = dir.path().join("1-Projects/my-file/index.md");
         assert_eq!(
@@ -1586,8 +1605,11 @@ mod tests {
     fn run_move_errors_when_no_item_matches_name() {
         let dir = tempdir().unwrap();
         let ws = workspace(dir.path());
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
 
-        let err = run_move(&ws, "nonexistent", Category::Project).unwrap_err();
+        let err = run_move(&ws, &mut ui, "nonexistent", Category::Project).unwrap_err();
 
         assert!(err.to_string().contains("nonexistent"));
     }
@@ -1597,8 +1619,11 @@ mod tests {
         let dir = tempdir().unwrap();
         let ws = workspace(dir.path());
         items::create(&ws, Category::Project, "website-redesign", "# Site\n").unwrap();
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
 
-        let err = run_move(&ws, "website-redesign", Category::Inbox).unwrap_err();
+        let err = run_move(&ws, &mut ui, "website-redesign", Category::Inbox).unwrap_err();
 
         assert!(err.to_string().contains("not yet supported"));
         assert!(
@@ -1607,6 +1632,120 @@ mod tests {
                 .is_file()
         );
         assert!(!dir.path().join("0-Inbox/website-redesign.md").exists());
+    }
+
+    #[test]
+    fn run_move_to_archive_prompts_and_stamps_default_summary() {
+        use std::cell::RefCell;
+
+        struct RecordingUi {
+            seen_prompt: RefCell<String>,
+            seen_default: RefCell<String>,
+        }
+
+        impl Ui for RecordingUi {
+            fn confirm(&mut self, prompt: &str, default: &str) -> Result<String, UiError> {
+                *self.seen_prompt.borrow_mut() = prompt.to_string();
+                *self.seen_default.borrow_mut() = default.to_string();
+                Ok(default.to_string())
+            }
+
+            fn choose(
+                &mut self,
+                _header: &str,
+                _options: &[(char, &str)],
+            ) -> Result<char, UiError> {
+                unimplemented!("not exercised by this test")
+            }
+
+            fn info(&mut self, _message: &str) {
+                unimplemented!("not exercised by this test")
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        items::create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            "# Website Redesign\n",
+        )
+        .unwrap();
+        let mut ui = RecordingUi {
+            seen_prompt: RefCell::new(String::new()),
+            seen_default: RefCell::new(String::new()),
+        };
+
+        run_move(&ws, &mut ui, "website-redesign", Category::Archive).unwrap();
+
+        assert_eq!(*ui.seen_prompt.borrow(), "Summary for website-redesign?");
+        assert_eq!(*ui.seen_default.borrow(), "Website Redesign");
+
+        let dest = dir
+            .path()
+            .join("4-Archive/Projects/website-redesign/index.md");
+        let content = fs::read_to_string(&dest).unwrap();
+        assert!(content.contains("summary: \"Website Redesign\""));
+    }
+
+    #[test]
+    fn run_move_to_archive_stamps_custom_summary_not_default() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        items::create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            "# Website Redesign\n",
+        )
+        .unwrap();
+        let mut ui = FakeUi {
+            confirm_response: "A custom summary".to_string(),
+        };
+
+        run_move(&ws, &mut ui, "website-redesign", Category::Archive).unwrap();
+
+        let dest = dir
+            .path()
+            .join("4-Archive/Projects/website-redesign/index.md");
+        let content = fs::read_to_string(&dest).unwrap();
+        assert!(content.contains("summary: \"A custom summary\""));
+        assert!(!content.contains("Website Redesign\"\n"));
+    }
+
+    #[test]
+    fn run_move_to_non_archive_does_not_prompt_or_stamp() {
+        struct PanicUi;
+
+        impl Ui for PanicUi {
+            fn confirm(&mut self, _prompt: &str, _default: &str) -> Result<String, UiError> {
+                panic!("confirm should not be called for a non-archive move")
+            }
+
+            fn choose(
+                &mut self,
+                _header: &str,
+                _options: &[(char, &str)],
+            ) -> Result<char, UiError> {
+                unimplemented!("not exercised by this test")
+            }
+
+            fn info(&mut self, _message: &str) {
+                unimplemented!("not exercised by this test")
+            }
+        }
+
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        items::create(&ws, Category::Inbox, "my-file", "hello").unwrap();
+        let mut ui = PanicUi;
+
+        run_move(&ws, &mut ui, "my-file", Category::Project).unwrap();
+
+        let dest = dir.path().join("1-Projects/my-file/index.md");
+        let content = fs::read_to_string(&dest).unwrap();
+        assert!(!content.contains("summary:"));
     }
 
     #[test]

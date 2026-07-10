@@ -1,6 +1,6 @@
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use thiserror::Error;
@@ -429,6 +429,100 @@ pub fn write_last_reviewed(item: &std::path::Path) -> Result<(), ItemsError> {
     };
 
     fs::write(item, new_content)?;
+    Ok(())
+}
+
+/// Resolves `item_root`/`category` to the actual content file path — the
+/// same directory-vs-flat-file branch `item_path` uses, but against
+/// `item_root` (an already-located item) rather than computing a fresh path
+/// from `name`.
+fn content_path(item_root: &Path, category: Category) -> PathBuf {
+    if category.is_directory_style() {
+        item_root.join("index.md")
+    } else {
+        item_root.to_path_buf()
+    }
+}
+
+/// Returns the default value the summary prompt should offer: the existing
+/// `summary` frontmatter field if present (move.md 006 scenario 3),
+/// otherwise the inferred title, falling back to `name` (move.md 006
+/// scenario 1, list.md 005's fallback-to-name convention).
+pub fn summary_default(
+    item_root: &Path,
+    category: Category,
+    name: &str,
+) -> Result<String, ItemsError> {
+    let path = content_path(item_root, category);
+    let content = fs::read_to_string(&path)?;
+    let note = gist::parser::parse(&path, &content);
+
+    if let Some(value) = note
+        .frontmatter
+        .as_ref()
+        .and_then(|fm| fm.fields.iter().find(|f| f.key == "summary"))
+        .and_then(|f| f.value.clone())
+    {
+        return Ok(value);
+    }
+
+    Ok(infer_title(&content).unwrap_or_else(|| name.to_string()))
+}
+
+/// Sets the content file's `summary` frontmatter field to `summary`, adding
+/// the field — and the frontmatter block itself, if absent — while
+/// preserving every other field and the body (move.md 006 scenario 4).
+/// Byte-splices like `write_last_reviewed`, but the written value is always
+/// double-quoted and escaped (`"` -> `\"`, `\` -> `\\`), never bare: unlike
+/// `last_reviewed`'s always-safe unquoted date scalar, `summary` is free
+/// text that can contain YAML-significant characters. Because the existing
+/// value being overwritten might itself be unquoted, the byte span replaced
+/// is widened by one on each side when the byte immediately outside
+/// `value_range` is a quote character, so old quotes (if any) are consumed
+/// rather than left dangling.
+pub fn write_summary(
+    item_root: &Path,
+    category: Category,
+    summary: &str,
+) -> Result<(), ItemsError> {
+    let path = content_path(item_root, category);
+    let content = fs::read_to_string(&path)?;
+    let note = gist::parser::parse(&path, &content);
+    let quoted = format!("\"{}\"", summary.replace('\\', "\\\\").replace('"', "\\\""));
+
+    let new_content = match note.frontmatter {
+        Some(fm) => {
+            match fm
+                .fields
+                .iter()
+                .find(|f| f.key == "summary" && f.value_range.is_some())
+            {
+                Some(field) => {
+                    let range = field.value_range.clone().unwrap();
+                    let mut start = range.start;
+                    let mut end = range.end;
+                    if start > 0 && matches!(content.as_bytes()[start - 1], b'"' | b'\'') {
+                        start -= 1;
+                    }
+                    if end < content.len() && matches!(content.as_bytes()[end], b'"' | b'\'') {
+                        end += 1;
+                    }
+                    format!("{}{quoted}{}", &content[..start], &content[end..])
+                }
+                None => {
+                    let insert_at = gist::parser::frontmatter_body_offset(&content) - 5;
+                    format!(
+                        "{}\nsummary: {quoted}{}",
+                        &content[..insert_at],
+                        &content[insert_at..]
+                    )
+                }
+            }
+        }
+        None => format!("---\nsummary: {quoted}\n---\n{content}"),
+    };
+
+    fs::write(&path, new_content)?;
     Ok(())
 }
 
@@ -1465,6 +1559,121 @@ mod tests {
         assert!(new_content.contains(&format!("last_reviewed: {today}")));
         assert!(new_content.contains("last_updated: 2020-01-01"));
         assert!(new_content.contains("# Title\nbody text\n"));
+    }
+
+    #[test]
+    fn summary_default_uses_inferred_title_when_no_summary_field() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let path = create(
+            &ws,
+            Category::Project,
+            "website-redesign",
+            "# Website Redesign\n",
+        )
+        .unwrap();
+        let item_root = path.parent().unwrap();
+
+        let default = summary_default(item_root, Category::Project, "website-redesign").unwrap();
+
+        assert_eq!(default, "Website Redesign");
+    }
+
+    #[test]
+    fn summary_default_falls_back_to_name_when_no_summary_or_heading() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let path = create(&ws, Category::Resource, "my-file", "plain text").unwrap();
+
+        let default = summary_default(&path, Category::Resource, "my-file").unwrap();
+
+        assert_eq!(default, "my-file");
+    }
+
+    #[test]
+    fn summary_default_prefers_existing_summary_field() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let path = create(
+            &ws,
+            Category::Area,
+            "health",
+            "---\nsummary: Fitness and nutrition tracking\n---\n# Health\n",
+        )
+        .unwrap();
+        let item_root = path.parent().unwrap();
+
+        let default = summary_default(item_root, Category::Area, "health").unwrap();
+
+        assert_eq!(default, "Fitness and nutrition tracking");
+    }
+
+    #[test]
+    fn write_summary_adds_field_preserving_other_fields_and_body() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let content = "---\nlast_reviewed: 2020-01-01\n---\n# Title\nbody text\n";
+        let path = create(&ws, Category::Resource, "my-file", content).unwrap();
+
+        write_summary(&path, Category::Resource, "A quick summary").unwrap();
+
+        let new_content = fs::read_to_string(&path).unwrap();
+        assert!(new_content.contains("summary: \"A quick summary\""));
+        assert!(new_content.contains("last_reviewed: 2020-01-01"));
+        assert!(new_content.contains("# Title\nbody text\n"));
+    }
+
+    #[test]
+    fn write_summary_overwrites_existing_scalar_value() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let content = "---\nsummary: Old summary\n---\n# Title\n";
+        let path = create(&ws, Category::Resource, "my-file", content).unwrap();
+
+        write_summary(&path, Category::Resource, "New summary").unwrap();
+
+        let new_content = fs::read_to_string(&path).unwrap();
+        assert!(new_content.contains("summary: \"New summary\""));
+        assert!(!new_content.contains("Old summary"));
+    }
+
+    #[test]
+    fn write_summary_containing_colon_stays_valid_yaml() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let path = create(&ws, Category::Resource, "my-file", "# Title\n").unwrap();
+
+        write_summary(&path, Category::Resource, "Meeting notes: Q1 planning").unwrap();
+
+        let new_content = fs::read_to_string(&path).unwrap();
+        let note = gist::parser::parse(&path, &new_content);
+        let value = note
+            .frontmatter
+            .unwrap()
+            .fields
+            .iter()
+            .find(|f| f.key == "summary")
+            .unwrap()
+            .value
+            .clone()
+            .unwrap();
+        assert_eq!(value, "Meeting notes: Q1 planning");
+    }
+
+    #[test]
+    fn write_summary_prepends_block_when_none_exists() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let content = "# Title\nbody text\n";
+        let path = create(&ws, Category::Resource, "my-file", content).unwrap();
+
+        write_summary(&path, Category::Resource, "A summary").unwrap();
+
+        let new_content = fs::read_to_string(&path).unwrap();
+        assert_eq!(
+            new_content,
+            "---\nsummary: \"A summary\"\n---\n# Title\nbody text\n"
+        );
     }
 
     #[test]

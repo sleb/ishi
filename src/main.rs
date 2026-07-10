@@ -275,7 +275,8 @@ fn main() -> anyhow::Result<()> {
         Commands::Move { name, target } => {
             let ws = Workspace::discover(&cwd, home_config.as_deref())
                 .context("failed to find a PARA workspace")?;
-            let message = cli::run_move(&ws, &name, target.into())?;
+            let mut ui = TerminalUi;
+            let message = cli::run_move(&ws, &mut ui, &name, target.into())?;
             println!("{message}");
         }
         Commands::Review => {
