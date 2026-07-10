@@ -267,7 +267,7 @@ structured results — no printing, no prompting.
   `Resource`, in that order; never `Archive`) for an item named `name`,
   returning the category it was found in and its actual on-disk root path.
   `Ok(None)` if no category has a match. Introduced by
-  [012-tk-move.md](lld/012-tk-move.md) so `cli::run_move` can resolve
+  `lld/012-tk-move.md` so `cli::run_move` can resolve
   `tk move <name> <target>`'s bare name to a source category before
   calling `mv`.
 - `mv(ws: &Workspace, source: Category, source_path: &Path, name: &str, target: Category) -> Result<PathBuf>`
@@ -297,10 +297,10 @@ structured results — no printing, no prompting.
   boundaries below.
 - `status(ws: &Workspace) -> Result<StatusReport>` where
   `StatusReport { counts: [usize; 5], projects: Vec<StatusItem>, areas:
-  Vec<StatusItem> }` — `counts` is per-category totals in `Category` order,
+Vec<StatusItem> }` — `counts` is per-category totals in `Category` order,
   computed by a private `count` that scans the same directories `list` does
   but skips the content read/`infer_title` call entirely
-  ([009-status-counts.md](lld/009-status-counts.md), `status.md` 001).
+  (`lld/009-status-counts.md`, `status.md` 001).
   `projects`/`areas` are sorted alphabetically by `name` (same convention as
   `list`) — implemented per [010-status-per-item.md](lld/010-status-per-item.md)
   (`status.md` 002–003).
@@ -399,7 +399,7 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
 - `enum DailyOutcome { Created(PathBuf), Reopened(PathBuf) }` — lets `main`
   decide whether to print a `Created ...` line.
 - `daily_note_exists(ws: &Workspace) -> bool` — true if today's daily note
-  already exists. Lets `main` print `Opening $EDITOR...` *before* handing
+  already exists. Lets `main` print `Opening $EDITOR...` _before_ handing
   control to a blocking editor process, the same convention `run_new`'s
   no-filename path uses, without `run_daily` itself needing a callback.
 - `run_daily(ws: &Workspace, editor: &dyn Editor) -> Result<DailyOutcome>`

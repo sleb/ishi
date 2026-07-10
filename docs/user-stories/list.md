@@ -35,7 +35,7 @@ unlike sorting by Updated.
 
 - **Summary:** Listing a category shows Name, Title, and Updated columns instead of bare paths
 - **Depends on:** [new.md](new.md) Story 003, Story 004, Story 005 (project/area/resource items to list), [review.md](review.md) Story 001 (shared raw-days age convention)
-- **Note:** Story 005 (Title-falls-back-to-Name) was folded into the same LLD as this story — see [docs/lld/007-list-base-columns.md](../lld/007-list-base-columns.md).
+- **Note:** Story 005 (Title-falls-back-to-Name) was folded into the same LLD as this story — see `docs/lld/007-list-base-columns.md`.
 
 ### Use Case
 
@@ -49,6 +49,7 @@ unlike sorting by Updated.
 - **Given:** I am inside an initialized PARA system with two projects, `website-redesign` (`index.md` heading `# Website Redesign`, last modified 2 days ago) and `my-project` (`index.md` heading `# My Project`, last modified 21 days ago)
 - **When:** I run `tk list project`
 - **Then:** Tick prints a header row (`NAME`, `TITLE`, `UPDATED`) followed by one row per project, sorted alphabetically by name:
+
   ```
   NAME               TITLE              UPDATED
   my-project         My Project         21 days ago
@@ -59,6 +60,7 @@ unlike sorting by Updated.
 - **Given:** I am inside an initialized PARA system with an area `health` (`index.md` heading `# Health`, last modified today)
 - **When:** I run `tk list area`
 - **Then:** Tick prints:
+
   ```
   NAME     TITLE    UPDATED
   health   Health   today
