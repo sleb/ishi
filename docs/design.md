@@ -458,10 +458,12 @@ wrapper, since `resolve` already returns a `thiserror` error and
   threaded through but unused — no prompt, no stamp, exactly as
   non-interactive as before. Backs `main`'s `Commands::Move { name,
   target }` dispatch (`mv` alias). See `docs/lld/012-tk-move.md`. `tk
-  archive <item>` (move.md Story 003, not started) is planned as a thin
-  `Commands::Archive { name }` alias dispatching straight to this same
+  archive <item>` (move.md Story 003, done) is a thin `Commands::Archive
+  { name }` alias in `main` dispatching straight to this same
   `run_move(ws, &mut ui, &name, Category::Archive)`, so it inherits the
-  summary stamp for free rather than duplicating it.
+  summary stamp for free rather than duplicating it; it takes no category
+  argument, so `tk archive <item> archive` is a clap parse error rather
+  than something `run_move` has to reject.
 - `run_init` (see above) is also where init.md Stories 005 (editor
   quick-open excludes for the configured archive folder) and 006
   (`CLAUDE.md` archive instruction) will trigger, not `run_move` — both

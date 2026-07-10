@@ -72,15 +72,15 @@ Archive    0
 | `init [name]`                                             | Initialize a new PARA system                                                                                                                                                                                                                                                                                                                        |
 | `new [filename] [--project\|--area\|--resource\|--daily]` | Capture a new note. Defaults to the Inbox; pass `--project` or `--area` to scaffold a directory with an `index.md`, or `--resource` for a flat file. Omit `filename` to capture in `$EDITOR`, which will suggest a name for you to confirm or override. `--daily` creates (or opens) today's note and takes no `filename`; see [`tk daily`](#daily) |
 | `daily`                                                   | Create (or open) today's daily note in the Inbox                                                                                                                                                                                                                                                                                                    |
-| `mv <item> <category>` *(not yet implemented)*             | Move a file or project/area directory to `inbox`, `project`, `area`, `resource`, or `archive`. Archiving preserves which category the item came from                                                                                                                                                                                                |
-| `archive <item>` *(not yet implemented)*                   | Sugar for `mv <item> archive`. Also stamps a summary into the item's frontmatter, and keeps editor quick-open excludes and a `CLAUDE.md` agent instruction up to date so the archive stays out of the way                                                                                                                                          |
+| `mv <item> <category>`                                     | Move a file or project/area directory to `inbox`, `project`, `area`, `resource`, or `archive`. Archiving preserves which category the item came from                                                                                                                                                                                                |
+| `archive <item>`                                           | Sugar for `mv <item> archive`. Also stamps a summary into the item's frontmatter. Keeping editor quick-open excludes and a `CLAUDE.md` agent instruction up to date so the archive stays out of the way is set up once, at `tk init` time *(not yet implemented)*                                                                                  |
 | `list <category> [filter]`                                | List items in a category (`inbox`, `project`, `area`, `resource`, or `archive`) with their inferred title and last-modified time, optionally filtered by name or title                                                                                                                                                                              |
 | `status`                                                  | Show item counts per category, plus last-updated/last-reviewed facts for projects and areas                                                                                                                                                                                                                                                                                         |
 | `review` *(not yet implemented)*                            | Walk through projects and areas one by one for a weekly review                                                                                                                                                                                                                                                                                      |
 | `config [init\|edit] [-g\|--global]`                      | View the effective config, or initialize/edit `.tick.toml`; `-g` targets `~/.tick.toml` instead of the local one                                                                                                                                                                                                                                    |
 | `completions <shell>`                                     | Generate a shell completion script                                                                                                                                                                                                                                                                                                                  |
 
-`mv`, `archive`, and `review` are documented below as designed, target behavior — they don't exist in `tk` yet, and running them today will hit a clap parse error rather than doing anything.
+`review` is documented below as designed, target behavior — it doesn't exist in `tk` yet, and running it today will hit a clap parse error rather than doing anything.
 
 Files created without an extension default to `.md`.
 
@@ -143,8 +143,6 @@ Opening $EDITOR...
 
 ### `move`
 
-*Not yet implemented — described here as designed, target behavior.*
-
 ```
 tk move <item> <inbox|project|area|resource|archive>
 ```
@@ -165,17 +163,14 @@ Moving a `project`/`area` directory to `inbox` or `resource` (unwrapping a direc
 
 ### `archive`
 
-*Not yet implemented — described here as designed, target behavior.*
-
 ```
 tk archive <item>
 ```
 
-Sugar for `tk move <item> archive` — files an item away without having to name the destination category. Beyond the move itself, `tk archive` keeps the archive out of the way of both your editor and any agent working alongside you:
+Sugar for `tk move <item> archive` — files an item away without having to name the destination category. It takes no category argument, since the destination is always `archive`.
 
 - It prompts for a one-line summary of the item (defaulting to its inferred title, or its existing `summary` frontmatter field if it has one), and stamps it into the item's frontmatter before moving it — so a listing or a quick look at the frontmatter is enough to know what an archived item was, without reading the whole thing.
-- It keeps `.vscode/settings.json` (`files.exclude`/`search.exclude`) and `.zed/settings.json` (`file_scan_exclude`) up to date with the configured archive folder name, creating either file if missing and merging into it (never overwriting unrelated settings) otherwise — so archived items stop showing up in cmd+P/quick-open.
-- It keeps a `CLAUDE.md` at the workspace root with an instruction not to read the archive folder unless explicitly asked or there's a strong reason to — creating the file (or appending the section) if it isn't already there.
+- *Not yet implemented:* keeping `.vscode/settings.json` (`files.exclude`/`search.exclude`) and `.zed/settings.json` (`file_scan_exclude`) up to date with the configured archive folder name, and keeping a `CLAUDE.md` instruction not to read the archive folder unless explicitly asked or there's a strong reason to — both set up once, at `tk init` time, rather than on every archiving move.
 
 ```
 $ tk archive my-project

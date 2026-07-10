@@ -101,7 +101,7 @@ See [init.md](init.md) Stories 005-006.)
 ## User Story 003
 
 - **Summary:** `tk archive <item>` is sugar for `tk move <item> archive` — a shorter, more memorable way to file something away
-- **Status:** Not started
+- **Status:** ✅
 - **Depends on:** Story 001 (the move semantics this delegates to)
 
 ### Use Case

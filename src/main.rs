@@ -48,6 +48,8 @@ enum Commands {
     /// Relocate an item to a different category.
     #[command(alias = "mv")]
     Move { name: String, target: MoveTarget },
+    /// File an item away — sugar for `tk move <item> archive`.
+    Archive { name: String },
     /// Walk every project and area, prompting keep/archive/skip.
     Review,
 }
@@ -279,6 +281,13 @@ fn main() -> anyhow::Result<()> {
             let message = cli::run_move(&ws, &mut ui, &name, target.into())?;
             println!("{message}");
         }
+        Commands::Archive { name } => {
+            let ws = Workspace::discover(&cwd, home_config.as_deref())
+                .context("failed to find a PARA workspace")?;
+            let mut ui = TerminalUi;
+            let message = cli::run_move(&ws, &mut ui, &name, Category::Archive)?;
+            println!("{message}");
+        }
         Commands::Review => {
             let ws = Workspace::discover(&cwd, home_config.as_deref())
                 .context("failed to find a PARA workspace")?;
@@ -430,6 +439,25 @@ mod tests {
                 target: MoveTarget::Archive,
             }
         );
+    }
+
+    #[test]
+    fn parses_archive() {
+        let cli = Cli::parse_from(["tk", "archive", "my-file"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Archive {
+                name: "my-file".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_archive_with_category_argument() {
+        let result = Cli::try_parse_from(["tk", "archive", "my-file", "archive"]);
+
+        assert!(result.is_err());
     }
 
     #[test]
