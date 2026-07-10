@@ -16,7 +16,7 @@ provenance notes, not live links.
 | `list`        | Done — Stories 001–005 complete (base NAME/TITLE/UPDATED columns, archive qualified naming, substring filter, empty-category message, Title-falls-back-to-Name) |
 | `status`      | Stories 001–004 done (per-category counts per `docs/lld/009-status-counts.md`; per-item Project/Area rows with `updated:`/`reviewed:` per `docs/lld/010-status-per-item.md`; `last_reviewed` write side per `docs/lld/013-review-keep-archive-skip.md`)                                                                                 |
 | `review`      | Done — Stories 001–003 complete, per `docs/lld/011-review-walk.md` and `docs/lld/013-review-keep-archive-skip.md`                                                                                                                                                                                                                                                    |
-| `config`      | Layering done, and `config init`/`config init -g`/`config edit`/`config edit -g`/`#:schema` file are implemented — bare `tk config` (provenance display) is still open                                                                                                                                                                                                                                                |
+| `config`      | Done — layering, `config init`/`config init -g`/`config edit`/`config edit -g`/`#:schema` file, and bare `tk config` (provenance display) are all implemented                                                                                                                                                                                                                                                |
 | `completions` | Done — `tk completions bash`/`zsh`/`fish`/`powershell`, per `docs/lld/008-completions.md`                                                                                                                                                                                                                                                                                                               |
 
 ## Dependency graph
@@ -41,7 +41,7 @@ that are docs-only and deliberately _not_ drawn here).
      |               |       + templates (done)
      v               |         /            \
  5. status (done)    |        v              v
-     |               |    3. daily (done) 8. config CLI (mostly done)
+     |               |    3. daily (done) 8. config CLI (done)
      +-------+-------+
              |         \
              v          v
@@ -237,9 +237,9 @@ resolution logic underneath it.
 `config init`/`config init -g` are done, per `docs/lld/006-config-init.md`.
 `config edit`/`config edit -g` are done, per `docs/lld/007-config-edit.md`.
 The `#:schema` JSON Schema file is done, per `docs/lld/007-config-schema.md`.
-Still open: bare `tk config` (provenance display).
+Bare `tk config` (provenance display) is done, per `docs/lld/014-config-show.md`.
 
-- Covers user-stories/config.md 003–006.
+- Covers user-stories/config.md 001, 003–006.
 
 ## Explicitly out of scope for this pass
 

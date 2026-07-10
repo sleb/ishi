@@ -269,21 +269,35 @@ Created ./.tick.toml
 
 $ tk config
 [folders]
-inbox = "0-Inbox"      # default
+inbox = "0-Inbox" # default
 projects = "1-Projects" # default
-areas = "2-Areas"       # default
+areas = "2-Areas" # default
 resources = "3-Resources" # default
-archive = "4-Archive"   # local, overrides user
+archive = "4-Archive" # local, overrides user
 
 [defaults]
 extension = "md" # default
 
 [templates]
-note = "..."    # default
-daily = "..."   # user
-project = "..." # default
-area = "..."    # default
-resource = "..." # default
+# default
+note = """
+..."""
+
+# user
+daily = """
+..."""
+
+# default
+project = """
+..."""
+
+# default
+area = """
+..."""
+
+# default
+resource = """
+..."""
 ```
 
 ### `completions`

@@ -165,6 +165,16 @@ Parses `.tick.toml` and layers it across three sources — built-in defaults,
   if `path` already exists, rather than overwriting a user's
   customizations. Backs `tk config init`/`tk config init -g` (see
   `cli::run_config_init` below).
+- `render_effective(config: &Config, origins: &ConfigOrigins) -> String` —
+  renders `config`/`origins` (the pair `Config::resolve` returns) as TOML
+  annotated with where each key came from (config.md 001): single-line
+  values (`folders.*`, `defaults.extension`) get a trailing `# <source>`
+  comment, `templates.*` values get a leading `# <source>` comment line
+  above the key (a trailing comment on the opening `key = """` line would
+  be swallowed into the multi-line string's content). Same table shape as
+  `default_toml()`, no `#:schema` header. Pure — no filesystem access.
+  Backs bare `tk config` (see `main`'s `Commands::Config { action: None }`
+  below).
 - `render(template: &str, title: &str, date: &str, time: &str, uuid: &str) -> String`
   — fills in `{{date}}`, `{{title}}`, `{{time}}`, and `{{uuid}}`, leaving
   `{{cursor}}` untouched (that marker is `Editor`'s job — see below). All
@@ -427,8 +437,16 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
   which computes `path`/`display` from `-g` via the same helper
   (`config_target`) `ConfigAction::Init`'s arm uses, then prints
   `Created {display}` only when created and `Opening $EDITOR...`
-  unconditionally. See `docs/lld/007-config-edit.md`. Bare `tk config`
-  (provenance display) is still open.
+  unconditionally. See `docs/lld/007-config-edit.md`.
+
+`action` on `Commands::Config` is `Option<ConfigAction>`: `Some(_)` matches
+`ConfigAction::Init`/`Edit` as above; `None` is bare `tk config`, which
+resolves `./.tick.toml` (via `config_target(&cwd, false)`, the same helper
+`Init`/`Edit` use) layered with `home_config`, via `Config::resolve`, then
+prints `config::render_effective(&config, &origins)` directly — no `cli`
+wrapper, since `resolve` already returns a `thiserror` error and
+`render_effective` is infallible pure formatting.
+
 - `run_move(ws: &Workspace, name: &str, target: Category) -> Result<String>`
   — locates `name` via `items::locate`, moves it to `target` via
   `items::mv`, and returns `"Moved {source} to {dest}"`. Errors if no item

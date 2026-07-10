@@ -33,7 +33,7 @@ enum Commands {
     /// View or manage the effective config.
     Config {
         #[command(subcommand)]
-        action: ConfigAction,
+        action: Option<ConfigAction>,
     },
     /// List items in a category.
     #[command(alias = "ls")]
@@ -236,14 +236,14 @@ fn main() -> anyhow::Result<()> {
             println!("Created {}", path.display());
         }
         Commands::Config {
-            action: ConfigAction::Init { global },
+            action: Some(ConfigAction::Init { global }),
         } => {
             let (path, display) = config_target(&cwd, global)?;
             let message = cli::run_config_init(&path, &display)?;
             println!("{message}");
         }
         Commands::Config {
-            action: ConfigAction::Edit { global },
+            action: Some(ConfigAction::Edit { global }),
         } => {
             let (path, display) = config_target(&cwd, global)?;
             let editor = RealEditor;
@@ -251,6 +251,11 @@ fn main() -> anyhow::Result<()> {
                 println!("Created {display}");
             }
             println!("Opening $EDITOR...");
+        }
+        Commands::Config { action: None } => {
+            let (path, _display) = config_target(&cwd, false)?;
+            let (config, origins) = tick::config::Config::resolve(&path, home_config.as_deref())?;
+            print!("{}", tick::config::render_effective(&config, &origins));
         }
         Commands::List { category, filter } => {
             let ws = Workspace::discover(&cwd, home_config.as_deref())
@@ -507,7 +512,7 @@ mod tests {
         assert_eq!(
             cli.command,
             Commands::Config {
-                action: ConfigAction::Init { global: false }
+                action: Some(ConfigAction::Init { global: false })
             }
         );
     }
@@ -519,7 +524,7 @@ mod tests {
         assert_eq!(
             cli.command,
             Commands::Config {
-                action: ConfigAction::Init { global: true }
+                action: Some(ConfigAction::Init { global: true })
             }
         );
     }
@@ -531,7 +536,7 @@ mod tests {
         assert_eq!(
             cli.command,
             Commands::Config {
-                action: ConfigAction::Init { global: true }
+                action: Some(ConfigAction::Init { global: true })
             }
         );
     }
@@ -543,7 +548,7 @@ mod tests {
         assert_eq!(
             cli.command,
             Commands::Config {
-                action: ConfigAction::Edit { global: false }
+                action: Some(ConfigAction::Edit { global: false })
             }
         );
     }
@@ -555,7 +560,7 @@ mod tests {
         assert_eq!(
             cli.command,
             Commands::Config {
-                action: ConfigAction::Edit { global: true }
+                action: Some(ConfigAction::Edit { global: true })
             }
         );
     }
@@ -567,16 +572,16 @@ mod tests {
         assert_eq!(
             cli.command,
             Commands::Config {
-                action: ConfigAction::Edit { global: true }
+                action: Some(ConfigAction::Edit { global: true })
             }
         );
     }
 
     #[test]
-    fn rejects_config_with_no_subcommand() {
-        let result = Cli::try_parse_from(["tk", "config"]);
+    fn parses_config_bare_as_action_none() {
+        let cli = Cli::parse_from(["tk", "config"]);
 
-        assert!(result.is_err());
+        assert_eq!(cli.command, Commands::Config { action: None });
     }
 
     #[test]

@@ -396,6 +396,73 @@ pub fn init(path: &Path) -> Result<(), ConfigError> {
     })
 }
 
+/// Renders `config`/`origins` (the pair `Config::resolve` returns) as TOML
+/// annotated with where each key came from — config.md 001. Single-line
+/// values (`folders.*`, `defaults.extension`) get a trailing `# <source>`
+/// comment; `templates.*` values are multi-line TOML basic strings, where a
+/// trailing comment on the opening `key = """` line would be swallowed into
+/// the string's content, so those get a `# <source>` comment on the line
+/// above the key instead. No `#:schema` header — that directive is
+/// `init`/`edit`'s concern (config.md 006), not display's.
+pub fn render_effective(config: &Config, origins: &ConfigOrigins) -> String {
+    let templates = &config.templates;
+    format!(
+        r#"[folders]
+inbox = "{}" # {}
+projects = "{}" # {}
+areas = "{}" # {}
+resources = "{}" # {}
+archive = "{}" # {}
+
+[defaults]
+extension = "{}" # {}
+
+[templates]
+# {}
+note = """
+{}"""
+
+# {}
+daily = """
+{}"""
+
+# {}
+project = """
+{}"""
+
+# {}
+area = """
+{}"""
+
+# {}
+resource = """
+{}"""
+"#,
+        config.category_dirs[0],
+        origins.category_dirs[0].comment(),
+        config.category_dirs[1],
+        origins.category_dirs[1].comment(),
+        config.category_dirs[2],
+        origins.category_dirs[2].comment(),
+        config.category_dirs[3],
+        origins.category_dirs[3].comment(),
+        config.category_dirs[4],
+        origins.category_dirs[4].comment(),
+        config.default_extension,
+        origins.default_extension.comment(),
+        origins.templates.note.comment(),
+        templates.note,
+        origins.templates.daily.comment(),
+        templates.daily,
+        origins.templates.project.comment(),
+        templates.project,
+        origins.templates.area.comment(),
+        templates.area,
+        origins.templates.resource.comment(),
+        templates.resource,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -765,6 +832,185 @@ mod tests {
         let schema_path = dir.path().join(".tick.schema.json");
         assert!(schema_path.exists());
         assert_eq!(fs::read_to_string(&schema_path).unwrap(), SCHEMA_JSON);
+    }
+
+    #[test]
+    fn render_effective_all_default_when_no_overrides() {
+        let config = Config::default();
+        let origins = ConfigOrigins {
+            category_dirs: [Source::Default; 5],
+            default_extension: Source::Default,
+            templates: TemplateOrigins {
+                note: Source::Default,
+                daily: Source::Default,
+                project: Source::Default,
+                area: Source::Default,
+                resource: Source::Default,
+            },
+        };
+
+        let rendered = render_effective(&config, &origins);
+
+        for line in [
+            "inbox = \"0-Inbox\" # default",
+            "projects = \"1-Projects\" # default",
+            "areas = \"2-Areas\" # default",
+            "resources = \"3-Resources\" # default",
+            "archive = \"4-Archive\" # default",
+            "extension = \"md\" # default",
+        ] {
+            assert!(rendered.contains(line), "missing line: {line}\n{rendered}");
+        }
+        for key in ["note", "daily", "project", "area", "resource"] {
+            assert!(
+                rendered.contains(&format!("# default\n{key} = \"\"\"")),
+                "missing default annotation above {key}\n{rendered}"
+            );
+        }
+    }
+
+    #[test]
+    fn render_effective_marks_local_override() {
+        let mut config = Config::default();
+        config.category_dirs[0] = "Inbox".to_string();
+        let mut origins = ConfigOrigins {
+            category_dirs: [Source::Default; 5],
+            default_extension: Source::Default,
+            templates: TemplateOrigins {
+                note: Source::Default,
+                daily: Source::Default,
+                project: Source::Default,
+                area: Source::Default,
+                resource: Source::Default,
+            },
+        };
+        origins.category_dirs[0] = Source::Local;
+
+        let rendered = render_effective(&config, &origins);
+
+        assert!(rendered.contains("inbox = \"Inbox\" # local"));
+        assert!(rendered.contains("projects = \"1-Projects\" # default"));
+    }
+
+    #[test]
+    fn render_effective_marks_local_overrides_user() {
+        let mut config = Config::default();
+        config.templates.daily = "local daily template".to_string();
+        let origins = ConfigOrigins {
+            category_dirs: [Source::Default; 5],
+            default_extension: Source::Default,
+            templates: TemplateOrigins {
+                note: Source::Default,
+                daily: Source::LocalOverridesUser,
+                project: Source::Default,
+                area: Source::Default,
+                resource: Source::Default,
+            },
+        };
+
+        let rendered = render_effective(&config, &origins);
+
+        assert!(
+            rendered
+                .contains("# local, overrides user\ndaily = \"\"\"\nlocal daily template\"\"\"")
+        );
+    }
+
+    #[test]
+    fn render_effective_marks_user_source() {
+        let mut config = Config::default();
+        config.templates.note = "user note template".to_string();
+        let origins = ConfigOrigins {
+            category_dirs: [Source::Default; 5],
+            default_extension: Source::Default,
+            templates: TemplateOrigins {
+                note: Source::User,
+                daily: Source::Default,
+                project: Source::Default,
+                area: Source::Default,
+                resource: Source::Default,
+            },
+        };
+
+        let rendered = render_effective(&config, &origins);
+
+        assert!(rendered.contains("# user\nnote = \"\"\"\nuser note template\"\"\""));
+    }
+
+    #[test]
+    fn render_effective_template_comment_is_a_separate_line() {
+        let config = Config::default();
+        let origins = ConfigOrigins {
+            category_dirs: [Source::Default; 5],
+            default_extension: Source::Default,
+            templates: TemplateOrigins {
+                note: Source::Default,
+                daily: Source::Default,
+                project: Source::Default,
+                area: Source::Default,
+                resource: Source::Default,
+            },
+        };
+
+        let rendered = render_effective(&config, &origins);
+
+        assert!(rendered.contains(&format!("\nnote = \"\"\"\n{}\"\"\"", config.templates.note)));
+    }
+
+    #[test]
+    fn render_effective_output_parses_as_toml() {
+        let config = Config::default();
+        let origins = ConfigOrigins {
+            category_dirs: [Source::Default; 5],
+            default_extension: Source::Default,
+            templates: TemplateOrigins {
+                note: Source::Default,
+                daily: Source::Default,
+                project: Source::Default,
+                area: Source::Default,
+                resource: Source::Default,
+            },
+        };
+
+        let rendered = render_effective(&config, &origins);
+
+        toml::from_str::<toml::Value>(&rendered).unwrap();
+    }
+
+    #[test]
+    fn render_effective_key_order_matches_default_toml() {
+        let config = Config::default();
+        let origins = ConfigOrigins {
+            category_dirs: [Source::Default; 5],
+            default_extension: Source::Default,
+            templates: TemplateOrigins {
+                note: Source::Default,
+                daily: Source::Default,
+                project: Source::Default,
+                area: Source::Default,
+                resource: Source::Default,
+            },
+        };
+
+        let rendered = render_effective(&config, &origins);
+        let effective_keys: Vec<&str> = rendered
+            .lines()
+            .filter_map(|line| line.split(" =").next())
+            .filter(|s| !s.starts_with('#') && !s.starts_with('['))
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
+        let default = default_toml();
+        let default_keys: Vec<&str> = default
+            .lines()
+            .skip(1)
+            .filter_map(|line| line.split(" =").next())
+            .filter(|s| !s.starts_with('#') && !s.starts_with('['))
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        assert_eq!(effective_keys, default_keys);
     }
 
     #[test]
