@@ -26,18 +26,18 @@ as "move.md Story 005" — but that story doesn't exist in
 
 ## Everything else is done
 
-| Command       | Notes                                                                     |
-| ------------- | -------------------------------------------------------------------------- |
-| `init`        | Done — includes Stories 005–006 (editor excludes, `CLAUDE.md`)            |
-| `new`         | Done — includes `--project`/`--area`/`--resource`, templates, placeholders |
-| `daily`       | Done                                                                        |
+| Command       | Notes                                                                           |
+| ------------- | ------------------------------------------------------------------------------- |
+| `init`        | Done                                                                            |
+| `new`         | Done                                                                            |
+| `daily`       | Done                                                                            |
 | `move`        | Stories 001, 002, 004 done. (Story 005, un-archiving, is remaining work above.) |
-| `archive`     | Done — sugar alias for `tk move <item> archive`                            |
-| `list`        | Done                                                                        |
-| `status`      | Done                                                                        |
-| `review`      | Done                                                                        |
-| `config`      | Done — layering, `config init`/`edit` (`-g`), provenance display, JSON Schema |
-| `completions` | Done                                                                        |
+| `archive`     | Done                                                                            |
+| `list`        | Done                                                                            |
+| `status`      | Done                                                                            |
+| `review`      | Done                                                                            |
+| `config`      | Done                                                                            |
+| `completions` | Done                                                                            |
 
 Implementation notes for finished work (design rationale, which LLD each
 story shipped under) live in git history and in `docs/design.md`, not
