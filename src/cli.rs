@@ -1896,6 +1896,52 @@ mod tests {
     }
 
     #[test]
+    fn run_move_rejects_ambiguous_bare_name_and_moves_nothing() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        items::create(&ws, Category::Inbox, "meeting-notes", "").unwrap();
+        items::create(&ws, Category::Resource, "meeting-notes", "").unwrap();
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
+
+        let err = run_move(&ws, &mut ui, "meeting-notes", Category::Archive, false).unwrap_err();
+
+        assert!(err.to_string().contains("ambiguous"));
+        assert!(dir.path().join("0-Inbox/meeting-notes.md").is_file());
+        assert!(dir.path().join("3-Resources/meeting-notes.md").is_file());
+        assert!(!dir.path().join("4-Archive").exists());
+    }
+
+    #[test]
+    fn run_move_qualified_name_moves_only_that_category() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        items::create(&ws, Category::Inbox, "meeting-notes", "").unwrap();
+        items::create(&ws, Category::Resource, "meeting-notes", "").unwrap();
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
+
+        run_move(
+            &ws,
+            &mut ui,
+            "resources/meeting-notes",
+            Category::Archive,
+            true,
+        )
+        .unwrap();
+
+        assert!(dir.path().join("0-Inbox/meeting-notes.md").is_file());
+        assert!(!dir.path().join("3-Resources/meeting-notes.md").exists());
+        assert!(
+            dir.path()
+                .join("4-Archive/Resources/meeting-notes.md")
+                .is_file()
+        );
+    }
+
+    #[test]
     fn run_move_rejects_unwrapping_project_into_inbox() {
         let dir = tempdir().unwrap();
         let ws = workspace(dir.path());

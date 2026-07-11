@@ -22,6 +22,8 @@ pub enum ItemsError {
     },
     #[error("\"{name}\" is already archived")]
     AlreadyArchived { name: String },
+    #[error("\"{name}\" is ambiguous — found in {locations}")]
+    Ambiguous { name: String, locations: String },
 }
 
 /// Computes the path `create` would write to, without touching the
@@ -524,52 +526,107 @@ pub fn write_summary(
     Ok(())
 }
 
-/// Searches `Category::archivable()` (`Inbox`, `Project`, `Area`,
-/// `Resource`, in that order) for an item named `name`, returning the
-/// category it was found in and its actual on-disk root path — the
-/// directory itself for a directory-style category (not its `index.md`),
-/// or the file itself (with whatever extension it actually has, not
-/// necessarily `ws.config.default_extension`) for a flat category.
-/// `Ok(None)` if no category has a match; never searches `Archive`.
+/// Searches for an item named `name`, returning the category it was found
+/// in and its actual on-disk root path — the directory itself for a
+/// directory-style category (not its `index.md`), or the file itself (with
+/// whatever extension it actually has, not necessarily
+/// `ws.config.default_extension`) for a flat category.
+///
+/// `name` may be qualified with a `<Category>/<basename>` prefix, either a
+/// live category's lowercase `display_name()` (`inbox`, `projects`,
+/// `areas`, `resources`) or an `Archive` item's origin subfolder
+/// (`Inbox`, `Projects`, `Areas`, `Resources`, matching
+/// `archive_origin_name()` case-sensitively). A recognized qualifier
+/// narrows the search to that one category and returns its result
+/// (`Some` or `None`) without falling back to a bare-name scan (move.md
+/// 006 scenario 3).
+///
+/// Otherwise searches `Category::archivable()` (`Inbox`, `Project`, `Area`,
+/// `Resource`, in that order): `Ok(None)` if none match, `Ok(Some(..))` if
+/// exactly one matches, or `Err(ItemsError::Ambiguous)` naming every
+/// matching category if more than one does (move.md 006 scenario 1) — a
+/// bare name never matches inside `Archive`.
 pub fn locate(ws: &Workspace, name: &str) -> Result<Option<(Category, PathBuf)>, ItemsError> {
+    if let Some((qualifier, basename)) = name.split_once('/') {
+        if let Some(origin) = Category::archivable()
+            .into_iter()
+            .find(|c| c.archive_origin_name() == qualifier)
+        {
+            let dir = ws
+                .category_dir(Category::Archive)
+                .join(origin.archive_origin_name());
+            return Ok(find_in_dir(
+                &dir,
+                origin.is_directory_style(),
+                basename,
+                &ws.config.default_extension,
+            )?
+            .map(|path| (Category::Archive, path)));
+        }
+
+        if let Some(category) = Category::archivable()
+            .into_iter()
+            .find(|c| c.display_name().to_lowercase() == qualifier)
+        {
+            let dir = ws.category_dir(category);
+            return Ok(find_in_dir(
+                &dir,
+                category.is_directory_style(),
+                basename,
+                &ws.config.default_extension,
+            )?
+            .map(|path| (category, path)));
+        }
+    }
+
+    let mut matches = Vec::new();
     for category in Category::archivable() {
         let dir = ws.category_dir(category);
-        if category.is_directory_style() {
-            let candidate = dir.join(name);
-            if candidate.is_dir() {
-                return Ok(Some((category, candidate)));
-            }
-        } else {
-            for (entry_name, path) in scan_dir(&dir, false, &ws.config.default_extension)? {
-                if entry_name == name {
-                    return Ok(Some((category, path)));
-                }
-            }
+        if let Some(path) = find_in_dir(
+            &dir,
+            category.is_directory_style(),
+            name,
+            &ws.config.default_extension,
+        )? {
+            matches.push((category, path));
         }
     }
 
-    if let Some((origin_name, basename)) = name.split_once('/')
-        && let Some(origin) = Category::archivable()
-            .into_iter()
-            .find(|c| c.archive_origin_name() == origin_name)
-    {
-        let dir = ws
-            .category_dir(Category::Archive)
-            .join(origin.archive_origin_name());
-        if origin.is_directory_style() {
-            let candidate = dir.join(basename);
-            if candidate.is_dir() {
-                return Ok(Some((Category::Archive, candidate)));
-            }
-        } else {
-            for (entry_name, path) in scan_dir(&dir, false, &ws.config.default_extension)? {
-                if entry_name == basename {
-                    return Ok(Some((Category::Archive, path)));
-                }
+    match matches.len() {
+        0 => Ok(None),
+        1 => Ok(matches.into_iter().next()),
+        _ => Err(ItemsError::Ambiguous {
+            name: name.to_string(),
+            locations: matches
+                .iter()
+                .map(|(category, _)| category.display_name().to_lowercase())
+                .collect::<Vec<_>>()
+                .join(", "),
+        }),
+    }
+}
+
+/// Looks for `basename` directly under `dir`: for a directory-style
+/// category, `dir/basename` if it's a directory; otherwise a file named
+/// `basename` (any extension) among `dir`'s immediate children.
+fn find_in_dir(
+    dir: &Path,
+    is_directory_style: bool,
+    basename: &str,
+    default_extension: &str,
+) -> Result<Option<PathBuf>, ItemsError> {
+    if is_directory_style {
+        let candidate = dir.join(basename);
+        if candidate.is_dir() {
+            return Ok(Some(candidate));
+        }
+    } else {
+        for (entry_name, path) in scan_dir(dir, false, default_extension)? {
+            if entry_name == basename {
+                return Ok(Some(path));
             }
         }
     }
-
     Ok(None)
 }
 
@@ -1297,15 +1354,20 @@ mod tests {
     }
 
     #[test]
-    fn locate_searches_inbox_before_project_area_resource() {
+    fn locate_ambiguous_error_lists_locations_in_archivable_order() {
         let dir = tempdir().unwrap();
         let ws = workspace(dir.path());
         create(&ws, Category::Resource, "my-item", "").unwrap();
         create(&ws, Category::Inbox, "my-item", "").unwrap();
 
-        let result = locate(&ws, "my-item").unwrap();
+        let err = locate(&ws, "my-item").unwrap_err();
 
-        assert_eq!(result.unwrap().0, Category::Inbox);
+        match err {
+            ItemsError::Ambiguous { locations, .. } => {
+                assert_eq!(locations, "inbox, resources");
+            }
+            other => panic!("expected Ambiguous, got {other:?}"),
+        }
     }
 
     #[test]
@@ -1363,6 +1425,58 @@ mod tests {
         let ws = workspace(dir.path());
 
         let result = locate(&ws, "Bogus/whatever").unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn locate_bare_name_matching_two_categories_is_ambiguous() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        create(&ws, Category::Inbox, "meeting-notes", "").unwrap();
+        create(&ws, Category::Resource, "meeting-notes", "").unwrap();
+
+        let err = locate(&ws, "meeting-notes").unwrap_err();
+
+        match err {
+            ItemsError::Ambiguous { name, locations } => {
+                assert_eq!(name, "meeting-notes");
+                assert_eq!(locations, "inbox, resources");
+            }
+            other => panic!("expected Ambiguous, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn locate_qualified_live_category_name_resolves_ambiguity() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        create(&ws, Category::Inbox, "meeting-notes", "").unwrap();
+        let resource_path = create(&ws, Category::Resource, "meeting-notes", "").unwrap();
+
+        let result = locate(&ws, "resources/meeting-notes").unwrap();
+
+        assert_eq!(result, Some((Category::Resource, resource_path)));
+    }
+
+    #[test]
+    fn locate_qualified_inbox_prefix_matches_unambiguous_item() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let path = create(&ws, Category::Inbox, "my-file", "").unwrap();
+
+        let result = locate(&ws, "inbox/my-file").unwrap();
+
+        assert_eq!(result, Some((Category::Inbox, path)));
+    }
+
+    #[test]
+    fn locate_qualified_prefix_not_matching_actual_location_is_none() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        create(&ws, Category::Inbox, "my-file", "").unwrap();
+
+        let result = locate(&ws, "projects/my-file").unwrap();
 
         assert_eq!(result, None);
     }

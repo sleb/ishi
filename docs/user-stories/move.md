@@ -235,7 +235,7 @@ See [init.md](init.md) Stories 005-006.)
 ## User Story 006
 
 - **Summary:** A bare name that matches more than one item is rejected, not silently resolved to whichever category happens to be checked first — the same `<Category>/<name>` qualified form Story 005 uses for archived items disambiguates live items too
-- **Status:** ⬜
+- **Status:** ✅
 - **Depends on:** Story 001 (the move semantics this disambiguation guards), Story 005 (the `<OriginCategory>/<name>` qualified form this extends to every category, not just `Archive`)
 
 ### Use Case

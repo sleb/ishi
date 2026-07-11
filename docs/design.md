@@ -159,9 +159,13 @@ structured results — no printing, no prompting.
   every creation path — interactive editor capture, non-interactive named
   creation, daily notes — funnels through one write.
 - **Locate**: finds an item by name across the four non-Archive categories
-  (Inbox, Project, Area, Resource), or by `<OriginCategory>/<name>` for an
-  archived item — a bare name never matches inside `Archive`, since
-  basenames aren't unique across origin subfolders.
+  (Inbox, Project, Area, Resource) — erroring if more than one matches,
+  since a bare name is only safe to resolve automatically when it's
+  unique — or via an explicit `<Category>/<name>` qualifier, either a live
+  category's lowercase name (`inbox`, `projects`, `areas`, `resources`) or
+  an `Archive` item's origin subfolder (`Inbox`, `Projects`, `Areas`,
+  `Resources`), the latter case-sensitively distinct from the former since
+  basenames aren't unique across `Archive` origin subfolders either.
 - **Move**: relocates an item between categories, wrapping a flat file into
   a directory when moving into `Project`/`Area`, and preserving the item's
   origin category as an `Archive` subfolder when archiving. Moving *out of*
