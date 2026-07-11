@@ -229,3 +229,41 @@ See [init.md](init.md) Stories 005-006.)
 - **When:** I run `tk move Resources/my-file archive`
 - **Then:** Tick prints an error explaining that `my-file` is already archived
 - **and Then:** no files or directories are moved, created, or modified
+
+---
+
+## User Story 006
+
+- **Summary:** A bare name that matches more than one item is rejected, not silently resolved to whichever category happens to be checked first — the same `<Category>/<name>` qualified form Story 005 uses for archived items disambiguates live items too
+- **Status:** ⬜
+- **Depends on:** Story 001 (the move semantics this disambiguation guards), Story 005 (the `<OriginCategory>/<name>` qualified form this extends to every category, not just `Archive`)
+
+### Use Case
+
+- **As a** Tick user with two items that happen to share a basename (e.g. `meeting-notes.md` in both `0-Inbox` and `3-Resources`)
+- **I want to** get an error telling me the name is ambiguous, instead of `tk` silently picking one of them
+- **so that** I never move — or accidentally overwrite context on — the wrong item just because Tick guessed for me
+
+### Acceptance Criteria
+
+- **Scenario:** A bare name matching items in two different live categories is rejected
+- **Given:** `meeting-notes.md` exists in both `0-Inbox` and `3-Resources`
+- **When:** I run `tk move meeting-notes archive`
+- **Then:** Tick prints an error naming both candidates (e.g. `"meeting-notes" is ambiguous — found in inbox, resources`) and does not move anything
+- **and Then:** no files or directories are moved, created, or modified
+
+- **Scenario:** Qualifying the name with its category resolves the ambiguity
+- **Given:** `meeting-notes.md` exists in both `0-Inbox` and `3-Resources`
+- **When:** I run `tk move resources/meeting-notes archive`
+- **Then:** Tick moves `3-Resources/meeting-notes.md` (and only that file) to `4-Archive/Resources/meeting-notes.md`
+
+- **Scenario:** The qualified form works for any live category, not just `Archive`'s origin subfolders
+- **Given:** `my-file.md` exists in `0-Inbox`
+- **When:** I run `tk move inbox/my-file project`
+- **Then:** Tick moves it exactly as `tk move my-file project` would if `my-file` were unambiguous
+- **and Then:** `tk move project/my-file ...` (any category prefix that doesn't match `my-file`'s actual location) reports no item found, rather than silently falling back to a bare-name search
+
+- **Scenario:** A bare name that matches nothing anywhere still gets Tick's existing "not found" error
+- **Given:** no item named `nonexistent` exists in any category
+- **When:** I run `tk move nonexistent project`
+- **Then:** Tick prints `No item named "nonexistent" found`, exactly as before — this story only changes behavior when a name matches more than one item

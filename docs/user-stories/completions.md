@@ -116,3 +116,29 @@
 - **Given:** I am in a directory that is not a Tick-initialized PARA system
 - **When:** I request completions for an item-name argument
 - **Then:** the shell offers no item-name completions, and the completion attempt does not error out or hang
+
+---
+
+## User Story 005
+
+- **Summary:** Completing a name that's ambiguous across categories offers the qualified `<Category>/<name>` forms, not a bare name that would just get rejected
+- **Status:** ⬜
+- **Depends on:** Story 004 (the completion mechanism this refines), [move.md](move.md) Story 006 (the ambiguity rejection and generalized `<Category>/<name>` qualified addressing this surfaces)
+
+### Use Case
+
+- **As a** Tick user tab-completing an item name that happens to collide with another item's basename
+- **I want to** be offered the qualified forms directly
+- **so that** I never complete my way into the "ambiguous name" error move.md Story 006 introduced — tab-completion should only ever offer names `tk move` will actually accept
+
+### Acceptance Criteria
+
+- **Scenario:** Completing a name that collides across two live categories offers both qualified forms
+- **Given:** `meeting-notes.md` exists in both `0-Inbox` and `3-Resources`
+- **When:** I type `tk move meeti` and press tab
+- **Then:** the shell offers `inbox/meeting-notes` and `resources/meeting-notes` as completions, not the bare `meeting-notes`
+
+- **Scenario:** Completing a name that's unique across all categories still offers the bare form
+- **Given:** `website-redesign` exists only as a directory under `1-Projects`
+- **When:** I type `tk move website` and press tab
+- **Then:** the shell offers `website-redesign` as a completion — no qualification is needed since there's nothing to disambiguate
