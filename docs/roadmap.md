@@ -17,13 +17,13 @@
 | `status`      | Done                                                                            |
 | `review`      | Done                                                                            |
 | `config`      | Done                                                                            |
-| `completions` | Done, except Story 005 below                                                    |
+| `completions` | Done, except Story 006 below                                                    |
 
 ## Outstanding stories
 
 | Story | Summary | LLD |
 | --- | --- | --- |
-| [completions.md](user-stories/completions.md) Story 005 | Tab-completion offers the qualified `<Category>/<name>` forms for a colliding name instead of a bare name move.md Story 006 rejects | `docs/lld/017-completions-ambiguous-name-offers-qualified-forms.md` |
+| [completions.md](user-stories/completions.md) Story 006 | Typing a bare prefix of a colliding item's name (not just an empty or already-qualified prefix) still offers its qualified completion forms | none yet — write one before implementing |
 
 Implementation notes for finished work (design rationale, which LLD each
 story shipped under) live in git history and in `docs/design.md`, not

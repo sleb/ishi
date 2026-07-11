@@ -239,7 +239,11 @@ argv-to-call-to-print shim and everything else is unit-testable. Notably:
 - `cli` owns the pure item-name-set logic backing tab-completion
   (`live_item_names`/`archived_item_names`), both thin wrappers over
   `items::list` — `main`'s completer functions call these and filter to the
-  in-progress argument's prefix.
+  in-progress argument's prefix. `live_item_names` qualifies a name with its
+  category (`<category>/<name>`, lowercase, matching `display_path`'s
+  rendering) whenever that basename occurs in more than one live category —
+  never offering a bare name `tk move` would now reject as ambiguous
+  (move.md 006).
 
 ## Appendix: notable invariants
 

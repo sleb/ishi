@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
@@ -470,16 +471,41 @@ pub fn run_unarchive(ws: &Workspace, name: &str) -> anyhow::Result<String> {
 
 /// Names of every item in a live (non-`Archive`) category, across all four
 /// live categories, sourced from `ws` at call time. Used for `tk move`/
-/// `tk archive`'s tab-completion — the shapes `items::locate` matches on a
-/// bare name. A category whose directory doesn't exist yet, or that can't
-/// be read, contributes no names rather than failing the whole listing.
+/// `tk archive`'s tab-completion — the shapes `items::locate` matches. A
+/// basename occurring in more than one live category is qualified as
+/// `<category>/<name>` (matching `display_path`'s rendering) so this never
+/// offers a bare name `items::locate` would now reject as ambiguous
+/// (move.md 006); a basename unique across all four categories stays bare.
+/// A category whose directory doesn't exist yet, or that can't be read,
+/// contributes no names rather than failing the whole listing.
 pub fn live_item_names(ws: &Workspace) -> Vec<String> {
-    Category::archivable()
+    let named: Vec<(Category, String)> = Category::archivable()
         .into_iter()
         .flat_map(|category| {
             items::list(ws, category, None)
-                .map(|items| items.into_iter().map(|item| item.name).collect())
+                .map(|items| {
+                    items
+                        .into_iter()
+                        .map(|item| (category, item.name))
+                        .collect()
+                })
                 .unwrap_or_else(|_| Vec::new())
+        })
+        .collect();
+
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for (_, name) in &named {
+        *counts.entry(name.clone()).or_default() += 1;
+    }
+
+    named
+        .into_iter()
+        .map(|(category, name)| {
+            if counts[&name] > 1 {
+                format!("{}/{name}", category.display_name().to_lowercase())
+            } else {
+                name
+            }
         })
         .collect()
 }
@@ -2185,6 +2211,43 @@ mod tests {
         let ws = workspace(dir.path());
 
         assert_eq!(live_item_names(&ws), Vec::<String>::new());
+    }
+
+    #[test]
+    fn live_item_names_qualifies_colliding_basenames() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        items::create(&ws, Category::Inbox, "meeting-notes", "").unwrap();
+        items::create(&ws, Category::Resource, "meeting-notes", "").unwrap();
+
+        let mut names = live_item_names(&ws);
+        names.sort();
+
+        assert_eq!(
+            names,
+            vec!["inbox/meeting-notes", "resources/meeting-notes"]
+        );
+    }
+
+    #[test]
+    fn live_item_names_qualifies_only_colliding_names() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        items::create(&ws, Category::Inbox, "meeting-notes", "").unwrap();
+        items::create(&ws, Category::Resource, "meeting-notes", "").unwrap();
+        items::create(&ws, Category::Project, "website-redesign", "").unwrap();
+
+        let mut names = live_item_names(&ws);
+        names.sort();
+
+        assert_eq!(
+            names,
+            vec![
+                "inbox/meeting-notes",
+                "resources/meeting-notes",
+                "website-redesign"
+            ]
+        );
     }
 
     #[test]

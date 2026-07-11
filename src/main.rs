@@ -1037,6 +1037,27 @@ mod tests {
     }
 
     #[test]
+    fn completes_qualified_forms_for_colliding_live_item_names() {
+        let _guard = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let original_cwd = env::current_dir().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let ws = init_workspace(dir.path());
+        tick::items::create(&ws, tick::category::Category::Inbox, "meeting-notes", "").unwrap();
+        tick::items::create(&ws, tick::category::Category::Resource, "meeting-notes", "").unwrap();
+        env::set_current_dir(dir.path()).unwrap();
+
+        let candidates = complete(&["tk", "move", ""], 2);
+
+        env::set_current_dir(original_cwd).unwrap();
+        let mut candidates = candidates;
+        candidates.sort();
+        assert_eq!(
+            candidates,
+            vec!["inbox/meeting-notes", "resources/meeting-notes"]
+        );
+    }
+
+    #[test]
     fn completes_an_archived_items_qualified_name() {
         let _guard = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let original_cwd = env::current_dir().unwrap();

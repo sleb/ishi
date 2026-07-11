@@ -122,7 +122,7 @@
 ## User Story 005
 
 - **Summary:** Completing a name that's ambiguous across categories offers the qualified `<Category>/<name>` forms, not a bare name that would just get rejected
-- **Status:** ⬜
+- **Status:** ✅
 - **Depends on:** Story 004 (the completion mechanism this refines), [move.md](move.md) Story 006 (the ambiguity rejection and generalized `<Category>/<name>` qualified addressing this surfaces)
 
 ### Use Case
@@ -135,10 +135,43 @@
 
 - **Scenario:** Completing a name that collides across two live categories offers both qualified forms
 - **Given:** `meeting-notes.md` exists in both `0-Inbox` and `3-Resources`
-- **When:** I type `tk move meeti` and press tab
+- **When:** I type `tk move ` (no further characters) and press tab
 - **Then:** the shell offers `inbox/meeting-notes` and `resources/meeting-notes` as completions, not the bare `meeting-notes`
 
 - **Scenario:** Completing a name that's unique across all categories still offers the bare form
 - **Given:** `website-redesign` exists only as a directory under `1-Projects`
 - **When:** I type `tk move website` and press tab
 - **Then:** the shell offers `website-redesign` as a completion — no qualification is needed since there's nothing to disambiguate
+
+> **Note:** as shipped, this story only guarantees qualified forms are offered when nothing (or an already-unambiguous prefix) has been typed — see Story 006 for typing a bare prefix of the colliding name itself (e.g. `meeti`).
+
+---
+
+## User Story 006
+
+- **Summary:** Typing a bare prefix of a colliding item's name still offers its qualified completion forms
+- **Status:** ⬜
+- **Depends on:** Story 005 (the qualification this extends matching for)
+
+### Use Case
+
+- **As a** Tick user tab-completing an item name that happens to collide with another item's basename
+- **I want to** have my typed prefix matched against the item's own name, not just against the qualified `<category>/` string in front of it
+- **so that** I can still find and complete a colliding item by typing the start of its actual name, the same way I would for any other item
+
+### Acceptance Criteria
+
+- **Scenario:** A bare prefix of a colliding name still surfaces both qualified forms
+- **Given:** `meeting-notes.md` exists in both `0-Inbox` and `3-Resources`
+- **When:** I type `tk move meeti` and press tab
+- **Then:** the shell offers `inbox/meeting-notes` and `resources/meeting-notes` as completions
+
+- **Scenario:** A bare prefix that only matches one colliding item's category is unaffected
+- **Given:** `meeting-notes.md` exists in both `0-Inbox` and `3-Resources`
+- **When:** I type `tk move inbox/meeti` and press tab
+- **Then:** the shell offers `inbox/meeting-notes` as a completion, matching on the qualified form as it does today
+
+- **Scenario:** Unique names keep matching exactly as before
+- **Given:** `website-redesign` exists only as a directory under `1-Projects`
+- **When:** I type `tk move website` and press tab
+- **Then:** the shell offers `website-redesign` as a completion, unaffected by this change
