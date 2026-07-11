@@ -30,10 +30,10 @@ fn review_walks_projects_then_areas_via_real_dispatch() {
     let output = common::tk(&["review"], dir.path(), None, Some("k\nk\n"));
 
     assert!(output.status.success());
-    let stdout = common::stdout(&output);
-    assert!(stdout.contains("Project: website-redesign (last updated today)"));
-    assert!(stdout.contains("Area: health (last updated today)"));
-    assert!(stdout.contains("[k]eep  [a]rchive  [s]kip?"));
+    let stderr = common::stderr(&output);
+    assert!(stderr.contains("Project: website-redesign (last updated today)"));
+    assert!(stderr.contains("Area: health (last updated today)"));
+    assert!(stderr.contains("[k]eep  [a]rchive  [s]kip?"));
 }
 
 #[test]

@@ -7,6 +7,7 @@ use thiserror::Error;
 use crate::category::Category;
 use crate::config::{Config, ConfigError};
 
+#[derive(Debug)]
 pub struct Workspace {
     pub root: PathBuf,
     pub config: Config,
@@ -18,14 +19,37 @@ pub struct InitReport {
 
 #[derive(Debug, Error)]
 pub enum WorkspaceError {
-    #[error("no PARA workspace found in {start} or any parent directory")]
-    NotFound { start: String },
+    #[error(
+        "no PARA workspace found in {start} or any parent directory ({missing}). Run \"tk init\" to create one here."
+    )]
+    NotFound { start: String, missing: String },
     #[error("failed to load config")]
     Config(#[from] ConfigError),
     #[error("{path} already exists and is not a directory")]
     NotAParaSystem { path: String },
     #[error(transparent)]
     Io(#[from] io::Error),
+}
+
+/// Describes which of the default category directories are absent from
+/// `dir`, for `WorkspaceError::NotFound`'s message — e.g. `"no 0-Inbox
+/// directory found"` or `"no 0-Inbox, 4-Archive directories found"`. `dir`
+/// is guaranteed to be missing at least one when this is called, since
+/// `discover` only reaches `NotFound` after failing to match `dir` itself.
+fn missing_category_dirs(dir: &Path) -> String {
+    let defaults = Config::default();
+    let missing: Vec<&str> = defaults
+        .category_dirs
+        .iter()
+        .filter(|name| !dir.join(name).is_dir())
+        .map(String::as_str)
+        .collect();
+
+    match missing.as_slice() {
+        [] => "no .tick.toml found".to_string(),
+        [one] => format!("no {one} directory found"),
+        many => format!("no {} directories found", many.join(", ")),
+    }
 }
 
 /// Returns `Ok(())` unless `target` exists and is a regular file (or other
@@ -91,6 +115,7 @@ impl Workspace {
 
         Err(WorkspaceError::NotFound {
             start: start.display().to_string(),
+            missing: missing_category_dirs(start),
         })
     }
 
@@ -143,6 +168,28 @@ mod tests {
         let result = Workspace::discover(dir.path(), None);
 
         assert!(matches!(result, Err(WorkspaceError::NotFound { .. })));
+    }
+
+    #[test]
+    fn not_found_message_names_missing_directories_and_suggests_init() {
+        let dir = tempdir().unwrap();
+
+        let err = Workspace::discover(dir.path(), None).unwrap_err();
+
+        let message = err.to_string();
+        assert!(message.contains("0-Inbox, 1-Projects, 2-Areas, 3-Resources, 4-Archive"));
+        assert!(message.contains("Run \"tk init\" to create one here."));
+    }
+
+    #[test]
+    fn not_found_message_names_only_the_missing_directory() {
+        let dir = tempdir().unwrap();
+        create_category_dirs(dir.path());
+        fs::remove_dir(dir.path().join("0-Inbox")).unwrap();
+
+        let err = Workspace::discover(dir.path(), None).unwrap_err();
+
+        assert!(err.to_string().contains("no 0-Inbox directory found"));
     }
 
     #[test]

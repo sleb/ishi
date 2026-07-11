@@ -17,7 +17,10 @@ fn new_with_filename_creates_note_via_real_dispatch() {
         .join("0-Inbox/my-file.md");
     assert_eq!(
         common::stdout(&output),
-        format!("Created {}\n", expected_path.display())
+        format!(
+            "Created {}\nNext: tk list to see it, or tk status for an overview.\n",
+            expected_path.display()
+        )
     );
     assert!(expected_path.is_file());
 }
@@ -43,10 +46,11 @@ fn new_without_filename_captures_via_real_editor_and_confirm_prompt() {
     assert_eq!(
         common::stdout(&output),
         format!(
-            "Opening $EDITOR...\nCreate \"title.md\"? [title.md] Created {}\n",
+            "Opening $EDITOR...\nCreated {}\nNext: tk list to see it, or tk status for an overview.\n",
             expected_path.display()
         )
     );
+    assert_eq!(common::stderr(&output), "Create \"title.md\"? [title.md] ");
     let content = std::fs::read_to_string(&expected_path).unwrap();
     assert!(content.contains("# Title"));
 }
@@ -71,7 +75,10 @@ fn new_project_flag_scaffolds_directory_via_real_dispatch() {
         .join("1-Projects/website-redesign/index.md");
     assert_eq!(
         common::stdout(&output),
-        format!("Created {}\n", expected_path.display())
+        format!(
+            "Created {}\nNext: tk list to see it, or tk status for an overview.\n",
+            expected_path.display()
+        )
     );
     assert!(expected_path.is_file());
 }

@@ -264,18 +264,27 @@ structured results — no printing, no prompting.
   alike) writes the right template rather than a raw string.
 - `locate(ws: &Workspace, name: &str) -> Result<Option<(Category, PathBuf)>>`
   — searches `Category::archivable()` (`Inbox`, `Project`, `Area`,
-  `Resource`, in that order; never `Archive`) for an item named `name`,
-  returning the category it was found in and its actual on-disk root path.
-  `Ok(None)` if no category has a match. Introduced by
+  `Resource`, in that order) for an item named `name`, returning the
+  category it was found in and its actual on-disk root path. If none
+  match, falls back to `Archive`, but only for a composite
+  `<OriginCategory>/<name>` form (e.g. `Projects/website-redesign`,
+  matching `ListedItem.name`'s `Archive` format below) — a bare name never
+  matches an `Archive` item, since basenames aren't unique across origin
+  subfolders. `Ok(None)` if nothing matches either way. Introduced by
   `lld/012-tk-move.md` so `cli::run_move` can resolve
   `tk move <name> <target>`'s bare name to a source category before
-  calling `mv`.
+  calling `mv`; extended for un-archiving per
+  [move.md](user-stories/move.md) Story 005.
 - `mv(ws: &Workspace, source: Category, source_path: &Path, name: &str, target: Category) -> Result<PathBuf>`
   — moves a file or project/area directory (already located by `locate`)
   to `target`; wraps a flat file into a new directory when moving into
   `Project`/`Area`; when moving to `Archive`, preserves the item's origin
   category as a subfolder. Relocating between matching shapes (e.g.
-  `Project`<->`Area`, `Inbox`<->`Resource`) moves the item as-is.
+  `Project`<->`Area`, `Inbox`<->`Resource`) moves the item as-is. Moving
+  *out of* `Archive` (source is `Archive`) follows the same wrap/relocate
+  rules as any other source, keyed off the target category, not the
+  origin recorded in the Archive subfolder — see
+  [move.md](user-stories/move.md) Story 005.
 - `struct ListedItem { name: String, title: String, updated_days_ago: u64 }` —
   `name` is the dir/file name (`<OriginCategory>/<name>` for `Archive`);
   `title` comes from `infer_title` below, falling back to `name` if it

@@ -12,7 +12,7 @@ use tick::review;
 use tick::workspace::Workspace;
 
 #[derive(Parser)]
-#[command(name = "tk")]
+#[command(name = "tk", version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -21,10 +21,20 @@ struct Cli {
 #[derive(Debug, PartialEq, Subcommand)]
 enum Commands {
     /// Capture a new note.
+    #[command(after_help = "\
+Examples:
+  tk new                     Open $EDITOR and suggest a filename from its content
+  tk new meeting-notes       Create ./0-Inbox/meeting-notes.md directly
+  tk new --project apollo    Scaffold a new project directory")]
     New {
+        /// Name of the file to create (extension added automatically).
+        /// Omit to open $EDITOR and be prompted with a suggested name.
         filename: Option<String>,
         #[command(flatten)]
         category: NewCategory,
+        /// Accept the suggested filename without prompting.
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
     },
     /// Create (or open) today's daily note in the Inbox.
     Daily,
@@ -46,10 +56,35 @@ enum Commands {
     /// Print a per-category summary of the PARA system.
     Status,
     /// Relocate an item to a different category.
-    #[command(alias = "mv")]
-    Move { name: String, target: MoveTarget },
+    #[command(
+        alias = "mv",
+        after_help = "\
+Examples:
+  tk move meeting-notes project   File an Inbox item as a project
+  tk mv apollo archive            Archive a project (prompts for a summary)
+  tk move apollo archive --yes    Archive it, accepting the suggested summary"
+    )]
+    Move {
+        /// Name of the item to relocate, as shown by `tk list`.
+        name: String,
+        /// Category to move the item into.
+        target: MoveTarget,
+        /// Accept the suggested archive summary without prompting.
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
+    },
     /// File an item away — sugar for `tk move <item> archive`.
-    Archive { name: String },
+    #[command(after_help = "\
+Examples:
+  tk archive apollo         Archive \"apollo\" (prompts for a summary)
+  tk archive apollo --yes   Archive it, accepting the suggested summary")]
+    Archive {
+        /// Name of the item to archive, as shown by `tk list`.
+        name: String,
+        /// Accept the suggested archive summary without prompting.
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
+    },
     /// Walk every project and area, prompting keep/archive/skip.
     Review,
 }
@@ -197,6 +232,7 @@ fn run_daily_command(ws: &Workspace) -> anyhow::Result<()> {
     let editor = RealEditor;
     if let cli::DailyOutcome::Created(path) = cli::run_daily(ws, &editor)? {
         println!("Created {}", path.display());
+        println!("Next: tk list to see it, or tk status for an overview.");
     }
     Ok(())
 }
@@ -212,6 +248,10 @@ fn main() -> anyhow::Result<()> {
         Commands::Init { name } => {
             let message = cli::run_init(&cwd, name.as_deref())?;
             println!("{message}");
+            match name.as_deref() {
+                Some(n) => println!("Next: cd {n} && tk new to capture your first note."),
+                None => println!("Next: tk new to capture your first note."),
+            }
         }
         Commands::Daily => {
             let ws = Workspace::discover(&cwd, home_config.as_deref())
@@ -221,12 +261,17 @@ fn main() -> anyhow::Result<()> {
         Commands::New {
             filename: _,
             category,
+            yes: _,
         } if category.into_kind() == Kind::Daily => {
             let ws = Workspace::discover(&cwd, home_config.as_deref())
                 .context("failed to find a PARA workspace")?;
             run_daily_command(&ws)?;
         }
-        Commands::New { filename, category } => {
+        Commands::New {
+            filename,
+            category,
+            yes,
+        } => {
             let ws = Workspace::discover(&cwd, home_config.as_deref())
                 .context("failed to find a PARA workspace")?;
             if filename.is_none() {
@@ -234,8 +279,9 @@ fn main() -> anyhow::Result<()> {
             }
             let editor = RealEditor;
             let mut ui = TerminalUi;
-            let path = cli::run_new(&ws, &editor, &mut ui, category.into_kind(), filename)?;
+            let path = cli::run_new(&ws, &editor, &mut ui, category.into_kind(), filename, yes)?;
             println!("Created {}", path.display());
+            println!("Next: tk list to see it, or tk status for an overview.");
         }
         Commands::Config {
             action: Some(ConfigAction::Init { global }),
@@ -248,11 +294,12 @@ fn main() -> anyhow::Result<()> {
             action: Some(ConfigAction::Edit { global }),
         } => {
             let (path, display) = config_target(&cwd, global)?;
-            let editor = RealEditor;
-            if cli::run_config_edit(&path, &editor)? {
+            if !path.exists() {
                 println!("Created {display}");
             }
             println!("Opening $EDITOR...");
+            let editor = RealEditor;
+            cli::run_config_edit(&path, &editor)?;
         }
         Commands::Config { action: None } => {
             let (path, _display) = config_target(&cwd, false)?;
@@ -274,18 +321,18 @@ fn main() -> anyhow::Result<()> {
             let output = cli::run_status(&ws)?;
             println!("{output}");
         }
-        Commands::Move { name, target } => {
+        Commands::Move { name, target, yes } => {
             let ws = Workspace::discover(&cwd, home_config.as_deref())
                 .context("failed to find a PARA workspace")?;
             let mut ui = TerminalUi;
-            let message = cli::run_move(&ws, &mut ui, &name, target.into())?;
+            let message = cli::run_move(&ws, &mut ui, &name, target.into(), yes)?;
             println!("{message}");
         }
-        Commands::Archive { name } => {
+        Commands::Archive { name, yes } => {
             let ws = Workspace::discover(&cwd, home_config.as_deref())
                 .context("failed to find a PARA workspace")?;
             let mut ui = TerminalUi;
-            let message = cli::run_move(&ws, &mut ui, &name, Category::Archive)?;
+            let message = cli::run_move(&ws, &mut ui, &name, Category::Archive, yes)?;
             println!("{message}");
         }
         Commands::Review => {
@@ -312,6 +359,7 @@ mod tests {
             Commands::New {
                 filename: Some("my-file".to_string()),
                 category: NewCategory::default(),
+                yes: false,
             }
         );
     }
@@ -328,6 +376,7 @@ mod tests {
                     project: true,
                     ..Default::default()
                 },
+                yes: false,
             }
         );
     }
@@ -344,6 +393,7 @@ mod tests {
                     area: true,
                     ..Default::default()
                 },
+                yes: false,
             }
         );
     }
@@ -360,6 +410,35 @@ mod tests {
                     resource: true,
                     ..Default::default()
                 },
+                yes: false,
+            }
+        );
+    }
+
+    #[test]
+    fn parses_new_yes_flag() {
+        let cli = Cli::parse_from(["tk", "new", "--yes"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::New {
+                filename: None,
+                category: NewCategory::default(),
+                yes: true,
+            }
+        );
+    }
+
+    #[test]
+    fn parses_new_yes_short_flag() {
+        let cli = Cli::parse_from(["tk", "new", "-y"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::New {
+                filename: None,
+                category: NewCategory::default(),
+                yes: true,
             }
         );
     }
@@ -383,6 +462,7 @@ mod tests {
                     daily: true,
                     ..Default::default()
                 },
+                yes: false,
             }
         );
     }
@@ -424,6 +504,7 @@ mod tests {
             Commands::Move {
                 name: "my-file".to_string(),
                 target: MoveTarget::Project,
+                yes: false,
             }
         );
     }
@@ -437,6 +518,7 @@ mod tests {
             Commands::Move {
                 name: "my-file".to_string(),
                 target: MoveTarget::Archive,
+                yes: false,
             }
         );
     }
@@ -449,6 +531,34 @@ mod tests {
             cli.command,
             Commands::Archive {
                 name: "my-file".to_string(),
+                yes: false,
+            }
+        );
+    }
+
+    #[test]
+    fn parses_archive_yes_flag() {
+        let cli = Cli::parse_from(["tk", "archive", "my-file", "--yes"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Archive {
+                name: "my-file".to_string(),
+                yes: true,
+            }
+        );
+    }
+
+    #[test]
+    fn parses_move_yes_flag() {
+        let cli = Cli::parse_from(["tk", "move", "my-file", "archive", "-y"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Move {
+                name: "my-file".to_string(),
+                target: MoveTarget::Archive,
+                yes: true,
             }
         );
     }

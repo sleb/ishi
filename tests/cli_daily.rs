@@ -19,7 +19,10 @@ fn daily_first_run_creates_non_interactively_via_real_dispatch() {
     let expected_path = root.join(format!("0-Inbox/{}.md", today()));
     assert_eq!(
         common::stdout(&output),
-        format!("Created {}\n", expected_path.display())
+        format!(
+            "Created {}\nNext: tk list to see it, or tk status for an overview.\n",
+            expected_path.display()
+        )
     );
     assert!(expected_path.is_file());
 }
@@ -68,7 +71,10 @@ fn new_daily_flag_reaches_same_behavior_as_daily_command() {
     let expected_path = root.join(format!("0-Inbox/{}.md", today()));
     assert_eq!(
         common::stdout(&output),
-        format!("Created {}\n", expected_path.display())
+        format!(
+            "Created {}\nNext: tk list to see it, or tk status for an overview.\n",
+            expected_path.display()
+        )
     );
     assert!(expected_path.is_file());
 }

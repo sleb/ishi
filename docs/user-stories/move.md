@@ -160,7 +160,7 @@ See [init.md](init.md) Stories 005-006.)
 - **When:** I run `tk move my-file archive` and type `Old pricing notes, superseded by the 2026 plan` at the summary prompt
 - **Then:** `my-file.md`'s frontmatter is stamped with `summary: Old pricing notes, superseded by the 2026 plan`, not the inferred title
 
-- **Scenario:** An item that already has a `summary` field offers it as the default instead of the inferred title
+<!--- **Scenario:** An item that already has a `summary` field offers it as the default instead of the inferred title-->
 - **Given:** I am inside an initialized PARA system with an area `health` whose `index.md` already has `summary: Fitness and nutrition tracking`
 - **When:** I run `tk move health archive`
 - **Then:** Tick prompts with a default of `Fitness and nutrition tracking`, not the inferred title

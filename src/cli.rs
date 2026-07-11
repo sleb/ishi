@@ -36,8 +36,8 @@ pub struct TerminalUi;
 
 impl Ui for TerminalUi {
     fn confirm(&mut self, prompt: &str, default: &str) -> Result<String, UiError> {
-        print!("{prompt} [{default}] ");
-        io::stdout().flush()?;
+        eprint!("{prompt} [{default}] ");
+        io::stderr().flush()?;
 
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
@@ -50,15 +50,15 @@ impl Ui for TerminalUi {
     }
 
     fn choose(&mut self, header: &str, options: &[(char, &str)]) -> Result<char, UiError> {
-        println!("{header}");
+        eprintln!("{header}");
         let rendered = options
             .iter()
             .map(|(c, rest)| format!("[{c}]{rest}"))
             .collect::<Vec<_>>()
             .join("  ");
         loop {
-            print!("  {rendered}? ");
-            io::stdout().flush()?;
+            eprint!("  {rendered}? ");
+            io::stderr().flush()?;
             let mut input = String::new();
             io::stdin().read_line(&mut input)?;
             if let Some(choice) = input.trim().to_lowercase().chars().next()
@@ -91,6 +91,7 @@ pub fn run_new(
     ui: &mut dyn Ui,
     kind: Kind,
     filename: Option<String>,
+    assume_yes: bool,
 ) -> anyhow::Result<PathBuf> {
     let category = kind.category();
     let template = ws.config.templates.for_kind(kind);
@@ -110,7 +111,11 @@ pub fn run_new(
             } else {
                 format!("{suggested}.{}", ws.config.default_extension)
             };
-            let chosen = ui.confirm(&format!("Create \"{default}\"?"), &default)?;
+            let chosen = if assume_yes {
+                default
+            } else {
+                ui.confirm(&format!("Create \"{default}\"?"), &default)?
+            };
             items::create(ws, category, &chosen, &content)?
         }
     };
@@ -177,9 +182,10 @@ pub fn run_config_init(path: &Path, display: &str) -> anyhow::Result<String> {
 
 /// Opens `path` in `$EDITOR`, creating it with the default config first
 /// (via `config::init`) if it doesn't exist yet. Returns whether it had to
-/// create the file first, so `main` can print `Created {display}` before
-/// `Opening $EDITOR...` on the no-config-yet path, mirroring `run_daily`'s
-/// existing "print before handing control to a blocking editor" convention.
+/// create the file first. `main` checks `path.exists()` itself and prints
+/// `Created {display}` / `Opening $EDITOR...` *before* calling this
+/// function, since it blocks on the editor — mirroring `run_daily`'s
+/// "print before handing control to a blocking editor" convention.
 pub fn run_config_edit(path: &Path, editor: &dyn Editor) -> anyhow::Result<bool> {
     let created = match config::init(path) {
         Ok(()) => true,
@@ -331,19 +337,26 @@ fn render_status_items(items: &[items::StatusItem]) -> Vec<String> {
 /// (defaulting per `items::summary_default`) and stamps it via
 /// `items::write_summary` before the move — the summary must land in the
 /// item's frontmatter before `mv` relocates it (move.md 006). For any other
-/// `target`, no prompt, no stamp (move.md 006 scenario 5).
+/// `target`, no prompt, no stamp (move.md 006 scenario 5). When `assume_yes`
+/// is set, the summary prompt is skipped and the suggested default is used
+/// as-is, for non-interactive use (`--yes`).
 pub fn run_move(
     ws: &Workspace,
     ui: &mut dyn Ui,
     name: &str,
     target: Category,
+    assume_yes: bool,
 ) -> anyhow::Result<String> {
     let (source, source_path) = items::locate(ws, name)?
         .ok_or_else(|| anyhow::anyhow!("No item named \"{name}\" found"))?;
 
     if target == Category::Archive {
         let default = items::summary_default(&source_path, source, name)?;
-        let summary = ui.confirm(&format!("Summary for {name}?"), &default)?;
+        let summary = if assume_yes {
+            default
+        } else {
+            ui.confirm(&format!("Summary for {name}?"), &default)?
+        };
         items::write_summary(&source_path, source, &summary)?;
     }
 
@@ -450,7 +463,7 @@ mod tests {
             confirm_response: "website-improvement-ideas.md".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Inbox, None, false).unwrap();
 
         assert_eq!(
             path,
@@ -474,7 +487,7 @@ mod tests {
             confirm_response: "my-custom-name".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Inbox, None, false).unwrap();
 
         assert_eq!(path, dir.path().join("0-Inbox/my-custom-name.md"));
     }
@@ -491,7 +504,7 @@ mod tests {
             confirm_response: "20260630-153045.md".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Inbox, None, false).unwrap();
 
         assert_eq!(path, dir.path().join("0-Inbox/20260630-153045.md"));
         assert_eq!(fs::read_to_string(&path).unwrap(), "");
@@ -525,7 +538,7 @@ mod tests {
             confirm_response: "title.md".to_string(),
         };
 
-        run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
+        run_new(&ws, &editor, &mut ui, Kind::Inbox, None, false).unwrap();
 
         let seed = editor.seen_seed.borrow();
         assert!(seed.contains("{{cursor}}"));
@@ -545,7 +558,7 @@ mod tests {
             confirm_response: "website-redesign".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Kind::Project, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Project, None, false).unwrap();
 
         assert_eq!(
             path,
@@ -569,7 +582,7 @@ mod tests {
             confirm_response: "health".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Kind::Area, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Area, None, false).unwrap();
 
         assert_eq!(path, dir.path().join("2-Areas/health/index.md"));
         assert_eq!(fs::read_to_string(&path).unwrap(), "# Health\nbody");
@@ -587,7 +600,7 @@ mod tests {
             confirm_response: "recipe-ideas.md".to_string(),
         };
 
-        let path = run_new(&ws, &editor, &mut ui, Kind::Resource, None).unwrap();
+        let path = run_new(&ws, &editor, &mut ui, Kind::Resource, None, false).unwrap();
 
         assert_eq!(path, dir.path().join("3-Resources/recipe-ideas.md"));
         assert_eq!(fs::read_to_string(&path).unwrap(), "# Recipe Ideas\nbody");
@@ -630,7 +643,7 @@ mod tests {
             seen_default: RefCell::new(String::new()),
         };
 
-        run_new(&ws, &editor, &mut ui, Kind::Project, None).unwrap();
+        run_new(&ws, &editor, &mut ui, Kind::Project, None, false).unwrap();
 
         assert_eq!(*ui.seen_default.borrow(), "website-redesign");
     }
@@ -663,7 +676,7 @@ mod tests {
             confirm_response: "title".to_string(),
         };
 
-        run_new(&ws, &editor, &mut ui, Kind::Project, None).unwrap();
+        run_new(&ws, &editor, &mut ui, Kind::Project, None, false).unwrap();
 
         let seed = editor.seen_seed.borrow();
         assert!(seed.contains("Status: active"));
@@ -684,6 +697,7 @@ mod tests {
             &mut ui,
             Kind::Inbox,
             Some("my-file".to_string()),
+            false,
         )
         .unwrap();
 
@@ -707,6 +721,7 @@ mod tests {
             &mut ui,
             Kind::Project,
             Some("website-redesign".to_string()),
+            false,
         )
         .unwrap();
 
@@ -735,6 +750,7 @@ mod tests {
             &mut ui,
             Kind::Area,
             Some("health".to_string()),
+            false,
         )
         .unwrap();
 
@@ -760,6 +776,7 @@ mod tests {
             &mut ui,
             Kind::Resource,
             Some("recipe-ideas".to_string()),
+            false,
         )
         .unwrap();
 
@@ -783,6 +800,7 @@ mod tests {
             &mut ui,
             Kind::Inbox,
             Some("my-file".to_string()),
+            false,
         )
         .unwrap();
 
@@ -806,6 +824,7 @@ mod tests {
             &mut ui,
             Kind::Inbox,
             Some("my-file".to_string()),
+            false,
         )
         .unwrap();
 
@@ -841,7 +860,7 @@ mod tests {
             confirm_response: "title".to_string(),
         };
 
-        run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
+        run_new(&ws, &editor, &mut ui, Kind::Inbox, None, false).unwrap();
 
         let seed = editor.seen_seed.borrow();
         assert!(!seed.contains("{{time}}"));
@@ -863,6 +882,7 @@ mod tests {
             &mut ui,
             Kind::Inbox,
             Some("my-file".to_string()),
+            false,
         )
         .unwrap();
 
@@ -898,7 +918,7 @@ mod tests {
             confirm_response: "title".to_string(),
         };
 
-        run_new(&ws, &editor, &mut ui, Kind::Inbox, None).unwrap();
+        run_new(&ws, &editor, &mut ui, Kind::Inbox, None, false).unwrap();
 
         let seed = editor.seen_seed.borrow();
         assert!(!seed.contains("{{uuid}}"));
@@ -920,6 +940,7 @@ mod tests {
             &mut ui,
             Kind::Inbox,
             Some("first-note".to_string()),
+            false,
         )
         .unwrap();
         let second_path = run_new(
@@ -928,6 +949,7 @@ mod tests {
             &mut ui,
             Kind::Inbox,
             Some("second-note".to_string()),
+            false,
         )
         .unwrap();
 
@@ -1592,7 +1614,7 @@ mod tests {
             confirm_response: String::new(),
         };
 
-        let message = run_move(&ws, &mut ui, "my-file", Category::Project).unwrap();
+        let message = run_move(&ws, &mut ui, "my-file", Category::Project, false).unwrap();
 
         let dest_path = dir.path().join("1-Projects/my-file/index.md");
         assert_eq!(
@@ -1609,7 +1631,7 @@ mod tests {
             confirm_response: String::new(),
         };
 
-        let err = run_move(&ws, &mut ui, "nonexistent", Category::Project).unwrap_err();
+        let err = run_move(&ws, &mut ui, "nonexistent", Category::Project, false).unwrap_err();
 
         assert!(err.to_string().contains("nonexistent"));
     }
@@ -1623,7 +1645,7 @@ mod tests {
             confirm_response: String::new(),
         };
 
-        let err = run_move(&ws, &mut ui, "website-redesign", Category::Inbox).unwrap_err();
+        let err = run_move(&ws, &mut ui, "website-redesign", Category::Inbox, false).unwrap_err();
 
         assert!(err.to_string().contains("not yet supported"));
         assert!(
@@ -1677,7 +1699,7 @@ mod tests {
             seen_default: RefCell::new(String::new()),
         };
 
-        run_move(&ws, &mut ui, "website-redesign", Category::Archive).unwrap();
+        run_move(&ws, &mut ui, "website-redesign", Category::Archive, false).unwrap();
 
         assert_eq!(*ui.seen_prompt.borrow(), "Summary for website-redesign?");
         assert_eq!(*ui.seen_default.borrow(), "Website Redesign");
@@ -1704,7 +1726,7 @@ mod tests {
             confirm_response: "A custom summary".to_string(),
         };
 
-        run_move(&ws, &mut ui, "website-redesign", Category::Archive).unwrap();
+        run_move(&ws, &mut ui, "website-redesign", Category::Archive, false).unwrap();
 
         let dest = dir
             .path()
@@ -1741,7 +1763,7 @@ mod tests {
         items::create(&ws, Category::Inbox, "my-file", "hello").unwrap();
         let mut ui = PanicUi;
 
-        run_move(&ws, &mut ui, "my-file", Category::Project).unwrap();
+        run_move(&ws, &mut ui, "my-file", Category::Project, false).unwrap();
 
         let dest = dir.path().join("1-Projects/my-file/index.md");
         let content = fs::read_to_string(&dest).unwrap();
