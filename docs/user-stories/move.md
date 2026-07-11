@@ -174,3 +174,58 @@ See [init.md](init.md) Stories 005-006.)
 - **Given:** I am inside an initialized PARA system with a resource `my-file.md`
 - **When:** I run `tk move my-file project`
 - **Then:** Tick doesn't prompt for a summary, and no `summary` frontmatter field is added — this affordance is specific to the `archive` destination
+
+---
+
+## User Story 005
+
+- **Summary:** Un-archiving — moving an item back out of `Archive` into a live category, keyed off the target category rather than the origin subfolder
+- **Status:** Not started
+- **Depends on:** Story 001 (the move semantics this extends), [list.md](list.md) (the `<OriginCategory>/<name>` composite form used to name archived items)
+
+### Use Case
+
+- **As a** Tick user who archived something and now needs it back
+- **I want to** move an item out of `Archive` with the same `tk move`/`tk mv` command I'd use for any other relocation
+- **so that** un-archiving isn't a special, separate command, and the item lands in whatever shape the target category expects, regardless of which category it was originally archived from
+
+### Acceptance Criteria
+
+- **Scenario:** A bare name never matches an archived item
+- **Given:** `website-redesign` exists only as a directory under `4-Archive/Projects`
+- **When:** I run `tk move website-redesign project`
+- **Then:** Tick reports no item named `website-redesign` was found — `Archive` items are only addressable by their qualified `<OriginCategory>/<name>` form, since basenames aren't unique across origin subfolders
+
+- **Scenario:** Un-archiving a directory item back into a directory-style category relocates it as-is
+- **Given:** `website-redesign` exists as a directory under `4-Archive/Projects`
+- **When:** I run `tk move Projects/website-redesign project`
+- **Then:** Tick prints `Moved ./4-Archive/Projects/website-redesign to ./1-Projects/website-redesign`
+- **and Then:** `index.md` and every other file in the directory are unchanged, just relocated
+
+- **Scenario:** Un-archiving a directory item into a different directory-style category also relocates it as-is
+- **Given:** `website-redesign` exists as a directory under `4-Archive/Projects`
+- **When:** I run `tk move Projects/website-redesign area`
+- **Then:** Tick prints `Moved ./4-Archive/Projects/website-redesign to ./2-Areas/website-redesign`
+
+- **Scenario:** Un-archiving a flat file back into a flat-file category relocates it as-is
+- **Given:** `my-file.md` exists under `4-Archive/Resources`
+- **When:** I run `tk move Resources/my-file inbox`
+- **Then:** Tick prints `Moved ./4-Archive/Resources/my-file.md to ./0-Inbox/my-file.md`
+
+- **Scenario:** Un-archiving a flat file into a directory-style category wraps it into a new directory
+- **Given:** `my-note.md` exists under `4-Archive/Inbox`
+- **When:** I run `tk move Inbox/my-note project`
+- **Then:** Tick prints `Moved ./4-Archive/Inbox/my-note.md to ./1-Projects/my-note/index.md`
+- **and Then:** `my-note.md`'s content becomes the new `index.md`'s content unchanged
+
+- **Scenario:** Un-archiving a directory item into a flat-file category is rejected, same as Story 002
+- **Given:** `website-redesign` exists as a directory under `4-Archive/Projects`
+- **When:** I run `tk move Projects/website-redesign inbox` or `tk move Projects/website-redesign resource`
+- **Then:** Tick prints an error explaining that unwrapping a directory into a flat file is not yet supported
+- **and Then:** no files or directories are moved, created, or modified
+
+- **Scenario:** Moving an already-archived item to `archive` again is rejected
+- **Given:** `my-file.md` exists under `4-Archive/Resources`
+- **When:** I run `tk move Resources/my-file archive`
+- **Then:** Tick prints an error explaining that `my-file` is already archived
+- **and Then:** no files or directories are moved, created, or modified
