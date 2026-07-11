@@ -226,7 +226,7 @@ pub fn run_config_edit(path: &Path, editor: &dyn Editor) -> anyhow::Result<bool>
 
 /// Formats a raw day-count the way `list`/`status`/`review` all render
 /// ages: `"today"`, `"1 day ago"`, `"N days ago"`.
-fn format_age(days: u64) -> String {
+pub(crate) fn format_age(days: u64) -> String {
     match days {
         0 => "today".to_string(),
         1 => "1 day ago".to_string(),

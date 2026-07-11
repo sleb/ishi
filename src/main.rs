@@ -211,15 +211,17 @@ impl NewCategory {
     }
 }
 
+/// Resolves `~/.tick.toml`, or `None` if `$HOME` isn't set.
+fn home_tick_toml() -> Option<PathBuf> {
+    env::var_os("HOME").map(|home| PathBuf::from(home).join(".tick.toml"))
+}
+
 /// Computes the local-vs-global config target: the path to write/open, and
 /// its human-readable display form (`"./.tick.toml"` or `"~/.tick.toml"`).
 fn config_target(cwd: &Path, global: bool) -> anyhow::Result<(PathBuf, String)> {
     Ok(if global {
-        let home = env::var_os("HOME").context("$HOME is not set")?;
-        (
-            PathBuf::from(&home).join(".tick.toml"),
-            "~/.tick.toml".to_string(),
-        )
+        let path = home_tick_toml().context("$HOME is not set")?;
+        (path, "~/.tick.toml".to_string())
     } else {
         (cwd.join(".tick.toml"), "./.tick.toml".to_string())
     })
@@ -242,7 +244,7 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     let cwd = env::current_dir().context("failed to determine current directory")?;
-    let home_config = env::var_os("HOME").map(|home| PathBuf::from(home).join(".tick.toml"));
+    let home_config = home_tick_toml();
 
     match cli.command {
         Commands::Init { name } => {

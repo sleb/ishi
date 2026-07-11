@@ -47,7 +47,7 @@ fn prompt_one(
     let header = format!(
         "{label}: {} (last updated {})",
         item.name,
-        format_age(item.updated_days_ago)
+        cli::format_age(item.updated_days_ago)
     );
     let choice = ui.choose(&header, &[('k', "eep"), ('a', "rchive"), ('s', "kip")])?;
 
@@ -64,19 +64,6 @@ fn prompt_one(
         _ => unreachable!("Ui::choose only returns a char from the options it was given"),
     }
     Ok(())
-}
-
-/// Duplicated from `cli::format_age` (not shared) — `review` depends on
-/// `cli` only for the `Ui`/`UiError` types passed into it; pulling in a
-/// formatting helper the other direction would invert the dependency
-/// `design.md`'s component diagram draws (`cli` calls `review::run`, never
-/// the reverse). Four lines, identical behavior.
-fn format_age(days: u64) -> String {
-    match days {
-        0 => "today".to_string(),
-        1 => "1 day ago".to_string(),
-        n => format!("{n} days ago"),
-    }
 }
 
 #[cfg(test)]

@@ -401,37 +401,61 @@ pub fn write_last_reviewed(item: &std::path::Path) -> Result<(), ItemsError> {
         .to_string();
     let note = gist::parser::parse(item, &content);
 
-    let new_content = match note.frontmatter {
+    let new_content = splice_frontmatter_field(&content, &note, "last_reviewed", &today, false);
+
+    fs::write(item, new_content)?;
+    Ok(())
+}
+
+/// Shared byte-splice core for `write_last_reviewed`/`write_summary`: finds
+/// `key` in `note.frontmatter` and replaces its `value_range`, or inserts
+/// `key: formatted_value` before the closing `---` if the field is absent
+/// but a frontmatter block exists, or prepends a fresh block if there's no
+/// frontmatter at all. `widen_quotes` extends the replaced span by one byte
+/// on each side when the adjacent byte is a quote character, so a
+/// pre-existing quoted value doesn't leave dangling quotes behind — needed
+/// for `summary` (always rewritten quoted) but not `last_reviewed` (always
+/// an unquoted date scalar).
+fn splice_frontmatter_field(
+    content: &str,
+    note: &gist::parser::Note,
+    key: &str,
+    formatted_value: &str,
+    widen_quotes: bool,
+) -> String {
+    match &note.frontmatter {
         Some(fm) => {
             match fm
                 .fields
                 .iter()
-                .find(|f| f.key == "last_reviewed" && f.value_range.is_some())
+                .find(|f| f.key == key && f.value_range.is_some())
             {
                 Some(field) => {
                     let range = field.value_range.clone().unwrap();
-                    format!(
-                        "{}{}{}",
-                        &content[..range.start],
-                        today,
-                        &content[range.end..]
-                    )
+                    let mut start = range.start;
+                    let mut end = range.end;
+                    if widen_quotes {
+                        if start > 0 && matches!(content.as_bytes()[start - 1], b'"' | b'\'') {
+                            start -= 1;
+                        }
+                        if end < content.len() && matches!(content.as_bytes()[end], b'"' | b'\'') {
+                            end += 1;
+                        }
+                    }
+                    format!("{}{formatted_value}{}", &content[..start], &content[end..])
                 }
                 None => {
-                    let insert_at = gist::parser::frontmatter_body_offset(&content) - 5;
+                    let insert_at = gist::parser::frontmatter_body_offset(content) - 5;
                     format!(
-                        "{}\nlast_reviewed: {today}{}",
+                        "{}\n{key}: {formatted_value}{}",
                         &content[..insert_at],
                         &content[insert_at..]
                     )
                 }
             }
         }
-        None => format!("---\nlast_reviewed: {today}\n---\n{content}"),
-    };
-
-    fs::write(item, new_content)?;
-    Ok(())
+        None => format!("---\n{key}: {formatted_value}\n---\n{content}"),
+    }
 }
 
 /// Resolves `item_root`/`category` to the actual content file path — the
@@ -478,14 +502,12 @@ pub fn summary_default(
 /// Sets the content file's `summary` frontmatter field to `summary`, adding
 /// the field — and the frontmatter block itself, if absent — while
 /// preserving every other field and the body (move.md 006 scenario 4).
-/// Byte-splices like `write_last_reviewed`, but the written value is always
-/// double-quoted and escaped (`"` -> `\"`, `\` -> `\\`), never bare: unlike
-/// `last_reviewed`'s always-safe unquoted date scalar, `summary` is free
-/// text that can contain YAML-significant characters. Because the existing
-/// value being overwritten might itself be unquoted, the byte span replaced
-/// is widened by one on each side when the byte immediately outside
-/// `value_range` is a quote character, so old quotes (if any) are consumed
-/// rather than left dangling.
+/// Byte-splices via `splice_frontmatter_field`, but the written value is
+/// always double-quoted and escaped (`"` -> `\"`, `\` -> `\\`), never bare:
+/// unlike `last_reviewed`'s always-safe unquoted date scalar, `summary` is
+/// free text that can contain YAML-significant characters, so quote-widening
+/// is enabled to consume any pre-existing quotes rather than leave them
+/// dangling.
 pub fn write_summary(
     item_root: &Path,
     category: Category,
@@ -496,37 +518,7 @@ pub fn write_summary(
     let note = gist::parser::parse(&path, &content);
     let quoted = format!("\"{}\"", summary.replace('\\', "\\\\").replace('"', "\\\""));
 
-    let new_content = match note.frontmatter {
-        Some(fm) => {
-            match fm
-                .fields
-                .iter()
-                .find(|f| f.key == "summary" && f.value_range.is_some())
-            {
-                Some(field) => {
-                    let range = field.value_range.clone().unwrap();
-                    let mut start = range.start;
-                    let mut end = range.end;
-                    if start > 0 && matches!(content.as_bytes()[start - 1], b'"' | b'\'') {
-                        start -= 1;
-                    }
-                    if end < content.len() && matches!(content.as_bytes()[end], b'"' | b'\'') {
-                        end += 1;
-                    }
-                    format!("{}{quoted}{}", &content[..start], &content[end..])
-                }
-                None => {
-                    let insert_at = gist::parser::frontmatter_body_offset(&content) - 5;
-                    format!(
-                        "{}\nsummary: {quoted}{}",
-                        &content[..insert_at],
-                        &content[insert_at..]
-                    )
-                }
-            }
-        }
-        None => format!("---\nsummary: {quoted}\n---\n{content}"),
-    };
+    let new_content = splice_frontmatter_field(&content, &note, "summary", &quoted, true);
 
     fs::write(&path, new_content)?;
     Ok(())
