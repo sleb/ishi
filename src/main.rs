@@ -85,6 +85,15 @@ Examples:
         #[arg(short = 'y', long = "yes")]
         yes: bool,
     },
+    /// Restore an archived item to the category it was archived from.
+    #[command(after_help = "\
+Examples:
+  tk unarchive Projects/apollo   Restore \"apollo\" to 1-Projects")]
+    Unarchive {
+        /// Qualified `<OriginCategory>/<name>` of the archived item, as
+        /// shown by `tk list archive`.
+        name: String,
+    },
     /// Walk every project and area, prompting keep/archive/skip.
     Review,
 }
@@ -337,6 +346,12 @@ fn main() -> anyhow::Result<()> {
             let message = cli::run_move(&ws, &mut ui, &name, Category::Archive, yes)?;
             println!("{message}");
         }
+        Commands::Unarchive { name } => {
+            let ws = Workspace::discover(&cwd, home_config.as_deref())
+                .context("failed to find a PARA workspace")?;
+            let message = cli::run_unarchive(&ws, &name)?;
+            println!("{message}");
+        }
         Commands::Review => {
             let ws = Workspace::discover(&cwd, home_config.as_deref())
                 .context("failed to find a PARA workspace")?;
@@ -568,6 +583,25 @@ mod tests {
     #[test]
     fn rejects_archive_with_category_argument() {
         let result = Cli::try_parse_from(["tk", "archive", "my-file", "archive"]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parses_unarchive() {
+        let cli = Cli::parse_from(["tk", "unarchive", "Projects/my-file"]);
+
+        assert_eq!(
+            cli.command,
+            Commands::Unarchive {
+                name: "Projects/my-file".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_unarchive_with_category_argument() {
+        let result = Cli::try_parse_from(["tk", "unarchive", "Projects/my-file", "project"]);
 
         assert!(result.is_err());
     }

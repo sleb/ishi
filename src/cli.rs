@@ -396,6 +396,38 @@ pub fn run_move(
     ))
 }
 
+/// Locates `name` via `items::locate` and moves it back to the category it
+/// was archived from — sugar for `tk move <OriginCategory>/<name>
+/// <OriginCategory-as-target>`, so un-archiving never requires spelling out
+/// a destination the qualified name already encodes (move.md 005's
+/// `<OriginCategory>/<name>` addressing). Rejects `name` if it doesn't
+/// resolve to an `Archive` item — a bare name matching a live item, or no
+/// match at all, is never something to "un-archive".
+pub fn run_unarchive(ws: &Workspace, name: &str) -> anyhow::Result<String> {
+    let (source, source_path) = items::locate(ws, name)?
+        .ok_or_else(|| anyhow::anyhow!("No item named \"{name}\" found"))?;
+
+    if source != Category::Archive {
+        anyhow::bail!("\"{name}\" is not archived");
+    }
+
+    let origin_name = name
+        .split_once('/')
+        .map(|(origin, _)| origin)
+        .expect("items::locate only resolves Archive for a qualified <OriginCategory>/<name>");
+    let target = Category::archivable()
+        .into_iter()
+        .find(|category| category.archive_origin_name() == origin_name)
+        .expect("items::locate only resolves Archive for a recognized origin prefix");
+
+    let dest_path = items::mv(ws, source, &source_path, name, target)?;
+    Ok(format!(
+        "Moved {} to {}",
+        source_path.display(),
+        dest_path.display()
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1871,6 +1903,73 @@ mod tests {
             .join("4-Archive/Projects/website-redesign/index.md");
         let content = fs::read_to_string(&dest).unwrap();
         assert!(content.contains("summary: \"Website Redesign\""));
+    }
+
+    #[test]
+    fn run_unarchive_restores_a_directory_item_to_its_origin_category() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let archived = dir
+            .path()
+            .join("4-Archive/Projects/website-redesign/index.md");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, "# Website Redesign\n").unwrap();
+
+        let message = run_unarchive(&ws, "Projects/website-redesign").unwrap();
+
+        let dest_path = dir.path().join("1-Projects/website-redesign");
+        assert_eq!(
+            message,
+            format!(
+                "Moved {} to {}",
+                archived.parent().unwrap().display(),
+                dest_path.display()
+            )
+        );
+        assert_eq!(
+            fs::read_to_string(dest_path.join("index.md")).unwrap(),
+            "# Website Redesign\n"
+        );
+    }
+
+    #[test]
+    fn run_unarchive_restores_a_flat_item_to_its_origin_category() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let archived = dir.path().join("4-Archive/Resources/my-file.md");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, "hello").unwrap();
+
+        let message = run_unarchive(&ws, "Resources/my-file").unwrap();
+
+        let dest_path = dir.path().join("3-Resources/my-file.md");
+        assert_eq!(
+            message,
+            format!("Moved {} to {}", archived.display(), dest_path.display())
+        );
+        assert_eq!(fs::read_to_string(&dest_path).unwrap(), "hello");
+    }
+
+    #[test]
+    fn run_unarchive_rejects_a_bare_name_matching_a_live_item() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        items::create(&ws, Category::Inbox, "my-file", "hello").unwrap();
+
+        let err = run_unarchive(&ws, "my-file").unwrap_err();
+
+        assert!(err.to_string().contains("not archived"));
+        assert!(dir.path().join("0-Inbox/my-file.md").is_file());
+    }
+
+    #[test]
+    fn run_unarchive_errors_when_no_item_matches_name() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let err = run_unarchive(&ws, "Projects/nonexistent").unwrap_err();
+
+        assert!(err.to_string().contains("nonexistent"));
     }
 
     #[test]
