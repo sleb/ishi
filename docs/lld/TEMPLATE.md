@@ -83,7 +83,7 @@ the default:
 4. Wire up `main`/CLI dispatch, with its own parse/dispatch tests.
 5. Mark the covered stories `✅` in `docs/user-stories/<story>.md`.
 6. Update `docs/roadmap.md`'s status for the corresponding item.
-7. Manual smoke test: concrete `tk <command>` invocations to run by hand
+7. Manual smoke test: concrete `ishi <command>` invocations to run by hand
    and what to look for in the output.
 8. `cargo clippy`, `cargo fmt --check`, `cargo test` clean before calling
    the stories done.

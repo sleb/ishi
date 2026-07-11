@@ -251,7 +251,7 @@ fn count(ws: &Workspace, category: Category) -> Result<usize, ItemsError> {
     }
 }
 
-/// Builds the per-category counts summary for `tk status`, plus the
+/// Builds the per-category counts summary for `ishi status`, plus the
 /// per-item breakdown for `Project`/`Area` (`status.md` 001–003).
 pub fn status(ws: &Workspace) -> Result<StatusReport, ItemsError> {
     status_at(ws, SystemTime::now(), chrono::Local::now().date_naive())

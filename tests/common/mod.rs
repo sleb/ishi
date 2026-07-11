@@ -6,11 +6,11 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-/// Scaffolds a real PARA workspace at `dir` without going through the `tk`
+/// Scaffolds a real PARA workspace at `dir` without going through the `ishi`
 /// binary, so tests that aren't exercising `init` itself can set up their
 /// fixture cheaply.
 pub fn init_workspace(dir: &Path) {
-    tick::workspace::init(dir).expect("failed to init workspace");
+    ishi::workspace::init(dir).expect("failed to init workspace");
 }
 
 /// Writes an executable shell script at `dir/name` to stand in for
@@ -25,12 +25,12 @@ pub fn write_fake_editor(dir: &Path, name: &str, body: &str) -> PathBuf {
     path
 }
 
-/// Runs the real `tk` binary with `args` in `dir`. `editor`, if set, becomes
-/// `$EDITOR`; otherwise `$EDITOR` is unset. `stdin`, if set, is written to
-/// the child's stdin and then closed (EOF), for tests that need to answer a
-/// `Ui::confirm` prompt.
-pub fn tk(args: &[&str], dir: &Path, editor: Option<&Path>, stdin: Option<&str>) -> Output {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_tk"));
+/// Runs the real `ishi` binary with `args` in `dir`. `editor`, if set,
+/// becomes `$EDITOR`; otherwise `$EDITOR` is unset. `stdin`, if set, is
+/// written to the child's stdin and then closed (EOF), for tests that need
+/// to answer a `Ui::confirm` prompt.
+pub fn ishi(args: &[&str], dir: &Path, editor: Option<&Path>, stdin: Option<&str>) -> Output {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_ishi"));
     cmd.args(args)
         .current_dir(dir)
         .stdin(Stdio::piped())
@@ -42,25 +42,25 @@ pub fn tk(args: &[&str], dir: &Path, editor: Option<&Path>, stdin: Option<&str>)
         None => cmd.env_remove("EDITOR"),
     };
 
-    let mut child = cmd.spawn().expect("failed to spawn tk");
+    let mut child = cmd.spawn().expect("failed to spawn ishi");
 
     if let Some(input) = stdin {
         let mut child_stdin = child.stdin.take().expect("stdin was piped");
         child_stdin
             .write_all(input.as_bytes())
-            .expect("failed to write to tk's stdin");
+            .expect("failed to write to ishi's stdin");
     }
 
     child
         .wait_with_output()
-        .expect("failed to wait on tk's output")
+        .expect("failed to wait on ishi's output")
 }
 
-/// Runs the real `tk` binary with `args` in `dir`, with `$HOME` pointed at
+/// Runs the real `ishi` binary with `args` in `dir`, with `$HOME` pointed at
 /// `home` and `$EDITOR` unset. For tests exercising `-g`/`--global` behavior
 /// that needs a controlled home directory rather than the real one.
-pub fn tk_with_home(args: &[&str], dir: &Path, home: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_tk"))
+pub fn ishi_with_home(args: &[&str], dir: &Path, home: &Path) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_ishi"))
         .args(args)
         .current_dir(dir)
         .env("HOME", home)
@@ -69,14 +69,14 @@ pub fn tk_with_home(args: &[&str], dir: &Path, home: &Path) -> Output {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .expect("failed to run tk")
+        .expect("failed to run ishi")
 }
 
-/// Runs the real `tk` binary with `args` in `dir`, with `$HOME` pointed at
+/// Runs the real `ishi` binary with `args` in `dir`, with `$HOME` pointed at
 /// `home` and `$EDITOR` pointed at `editor`. For tests exercising `-g`
 /// behavior that also needs to observe/control the editor invocation.
-pub fn tk_with_home_and_editor(args: &[&str], dir: &Path, home: &Path, editor: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_tk"))
+pub fn ishi_with_home_and_editor(args: &[&str], dir: &Path, home: &Path, editor: &Path) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_ishi"))
         .args(args)
         .current_dir(dir)
         .env("HOME", home)
@@ -85,7 +85,7 @@ pub fn tk_with_home_and_editor(args: &[&str], dir: &Path, home: &Path, editor: &
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .expect("failed to run tk")
+        .expect("failed to run ishi")
 }
 
 pub fn stdout(output: &Output) -> String {

@@ -1,10 +1,14 @@
 [package]
-name = "tick"
+name = "ishi"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "ishi"
+path = "src/lib.rs"
+
 [[bin]]
-name = "tk"
+name = "ishi"
 path = "src/main.rs"
 
 [dependencies]

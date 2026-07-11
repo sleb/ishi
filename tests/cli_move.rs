@@ -6,18 +6,18 @@ use tempfile::tempdir;
 fn move_relocates_flat_file_into_project_via_real_dispatch() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
-    tick::items::create(
-        &tick::workspace::Workspace {
+    ishi::items::create(
+        &ishi::workspace::Workspace {
             root: dir.path().to_path_buf(),
-            config: tick::config::Config::default(),
+            config: ishi::config::Config::default(),
         },
-        tick::category::Category::Inbox,
+        ishi::category::Category::Inbox,
         "my-file",
         "hello",
     )
     .unwrap();
 
-    let output = common::tk(&["move", "my-file", "project"], dir.path(), None, None);
+    let output = common::ishi(&["move", "my-file", "project"], dir.path(), None, None);
 
     assert!(output.status.success());
     let root = dir.path().canonicalize().unwrap();
@@ -35,18 +35,18 @@ fn move_relocates_flat_file_into_project_via_real_dispatch() {
 fn mv_alias_behaves_identically_to_move() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
-    tick::items::create(
-        &tick::workspace::Workspace {
+    ishi::items::create(
+        &ishi::workspace::Workspace {
             root: dir.path().to_path_buf(),
-            config: tick::config::Config::default(),
+            config: ishi::config::Config::default(),
         },
-        tick::category::Category::Inbox,
+        ishi::category::Category::Inbox,
         "my-file",
         "hello",
     )
     .unwrap();
 
-    let output = common::tk(&["mv", "my-file", "project"], dir.path(), None, None);
+    let output = common::ishi(&["mv", "my-file", "project"], dir.path(), None, None);
 
     assert!(output.status.success());
     let root = dir.path().canonicalize().unwrap();
@@ -58,18 +58,18 @@ fn mv_alias_behaves_identically_to_move() {
 fn archive_alias_moves_item_to_archive_via_real_dispatch() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
-    tick::items::create(
-        &tick::workspace::Workspace {
+    ishi::items::create(
+        &ishi::workspace::Workspace {
             root: dir.path().to_path_buf(),
-            config: tick::config::Config::default(),
+            config: ishi::config::Config::default(),
         },
-        tick::category::Category::Resource,
+        ishi::category::Category::Resource,
         "my-file",
         "hello",
     )
     .unwrap();
 
-    let output = common::tk(&["archive", "my-file"], dir.path(), None, Some("\n"));
+    let output = common::ishi(&["archive", "my-file"], dir.path(), None, Some("\n"));
 
     assert!(output.status.success());
     let root = dir.path().canonicalize().unwrap();
@@ -82,18 +82,18 @@ fn archive_alias_moves_item_to_archive_via_real_dispatch() {
 fn archive_yes_flag_skips_summary_prompt() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
-    tick::items::create(
-        &tick::workspace::Workspace {
+    ishi::items::create(
+        &ishi::workspace::Workspace {
             root: dir.path().to_path_buf(),
-            config: tick::config::Config::default(),
+            config: ishi::config::Config::default(),
         },
-        tick::category::Category::Resource,
+        ishi::category::Category::Resource,
         "my-file",
         "hello",
     )
     .unwrap();
 
-    let output = common::tk(&["archive", "my-file", "--yes"], dir.path(), None, None);
+    let output = common::ishi(&["archive", "my-file", "--yes"], dir.path(), None, None);
 
     assert!(output.status.success());
     assert_eq!(common::stderr(&output), "");
@@ -107,19 +107,19 @@ fn archive_yes_flag_skips_summary_prompt() {
 fn unarchive_restores_item_to_its_origin_category_via_real_dispatch() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
-    tick::items::create(
-        &tick::workspace::Workspace {
+    ishi::items::create(
+        &ishi::workspace::Workspace {
             root: dir.path().to_path_buf(),
-            config: tick::config::Config::default(),
+            config: ishi::config::Config::default(),
         },
-        tick::category::Category::Resource,
+        ishi::category::Category::Resource,
         "my-file",
         "hello",
     )
     .unwrap();
-    common::tk(&["archive", "my-file"], dir.path(), None, Some("\n"));
+    common::ishi(&["archive", "my-file"], dir.path(), None, Some("\n"));
 
-    let output = common::tk(&["unarchive", "Resources/my-file"], dir.path(), None, None);
+    let output = common::ishi(&["unarchive", "Resources/my-file"], dir.path(), None, None);
 
     assert!(output.status.success());
     let root = dir.path().canonicalize().unwrap();
@@ -132,18 +132,18 @@ fn unarchive_restores_item_to_its_origin_category_via_real_dispatch() {
 fn unarchive_rejects_a_bare_name_matching_a_live_item() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
-    tick::items::create(
-        &tick::workspace::Workspace {
+    ishi::items::create(
+        &ishi::workspace::Workspace {
             root: dir.path().to_path_buf(),
-            config: tick::config::Config::default(),
+            config: ishi::config::Config::default(),
         },
-        tick::category::Category::Resource,
+        ishi::category::Category::Resource,
         "my-file",
         "hello",
     )
     .unwrap();
 
-    let output = common::tk(&["unarchive", "my-file"], dir.path(), None, None);
+    let output = common::ishi(&["unarchive", "my-file"], dir.path(), None, None);
 
     assert!(!output.status.success());
     let root = dir.path().canonicalize().unwrap();
@@ -154,18 +154,18 @@ fn unarchive_rejects_a_bare_name_matching_a_live_item() {
 fn archive_alias_rejects_category_argument() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
-    tick::items::create(
-        &tick::workspace::Workspace {
+    ishi::items::create(
+        &ishi::workspace::Workspace {
             root: dir.path().to_path_buf(),
-            config: tick::config::Config::default(),
+            config: ishi::config::Config::default(),
         },
-        tick::category::Category::Resource,
+        ishi::category::Category::Resource,
         "my-file",
         "hello",
     )
     .unwrap();
 
-    let output = common::tk(&["archive", "my-file", "archive"], dir.path(), None, None);
+    let output = common::ishi(&["archive", "my-file", "archive"], dir.path(), None, None);
 
     assert!(!output.status.success());
     let root = dir.path().canonicalize().unwrap();

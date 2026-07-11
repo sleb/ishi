@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "tick config",
-  "description": "Schema for .tick.toml, tick's PARA-method config file.",
+  "title": "ishi config",
+  "description": "Schema for .ishi.toml, ishi's PARA-method config file.",
   "type": "object",
   "properties": {
     "folders": {

@@ -8,14 +8,14 @@ use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::engine::{ArgValueCompleter, CompletionCandidate};
 use clap_complete::env::{Bash, EnvCompleter, Fish, Powershell, Zsh};
 
-use tick::category::{Category, Kind};
-use tick::cli::{self, TerminalUi};
-use tick::editor::RealEditor;
-use tick::review;
-use tick::workspace::Workspace;
+use ishi::category::{Category, Kind};
+use ishi::cli::{self, TerminalUi};
+use ishi::editor::RealEditor;
+use ishi::review;
+use ishi::workspace::Workspace;
 
 #[derive(Parser)]
-#[command(name = "tk", version)]
+#[command(name = "ishi", version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -26,9 +26,9 @@ enum Commands {
     /// Capture a new note.
     #[command(after_help = "\
 Examples:
-  tk new                     Open $EDITOR and suggest a filename from its content
-  tk new meeting-notes       Create ./0-Inbox/meeting-notes.md directly
-  tk new --project apollo    Scaffold a new project directory")]
+  ishi new                     Open $EDITOR and suggest a filename from its content
+  ishi new meeting-notes       Create ./0-Inbox/meeting-notes.md directly
+  ishi new --project apollo    Scaffold a new project directory")]
     New {
         /// Name of the file to create (extension added automatically).
         /// Omit to open $EDITOR and be prompted with a suggested name.
@@ -54,7 +54,7 @@ Examples:
         category: ListCategory,
         filter: Option<String>,
     },
-    /// Print a shell completion script for `tk` to stdout.
+    /// Print a shell completion script for `ishi` to stdout.
     Completions { shell: CompletionShell },
     /// Print a per-category summary of the PARA system.
     Status,
@@ -63,12 +63,12 @@ Examples:
         alias = "mv",
         after_help = "\
 Examples:
-  tk move meeting-notes project   File an Inbox item as a project
-  tk mv apollo archive            Archive a project (prompts for a summary)
-  tk move apollo archive --yes    Archive it, accepting the suggested summary"
+  ishi move meeting-notes project   File an Inbox item as a project
+  ishi mv apollo archive            Archive a project (prompts for a summary)
+  ishi move apollo archive --yes    Archive it, accepting the suggested summary"
     )]
     Move {
-        /// Name of the item to relocate, as shown by `tk list`.
+        /// Name of the item to relocate, as shown by `ishi list`.
         #[arg(add = ArgValueCompleter::new(complete_move_name))]
         name: String,
         /// Category to move the item into.
@@ -77,13 +77,13 @@ Examples:
         #[arg(short = 'y', long = "yes")]
         yes: bool,
     },
-    /// File an item away — sugar for `tk move <item> archive`.
+    /// File an item away — sugar for `ishi move <item> archive`.
     #[command(after_help = "\
 Examples:
-  tk archive apollo         Archive \"apollo\" (prompts for a summary)
-  tk archive apollo --yes   Archive it, accepting the suggested summary")]
+  ishi archive apollo         Archive \"apollo\" (prompts for a summary)
+  ishi archive apollo --yes   Archive it, accepting the suggested summary")]
     Archive {
-        /// Name of the item to archive, as shown by `tk list`.
+        /// Name of the item to archive, as shown by `ishi list`.
         #[arg(add = ArgValueCompleter::new(complete_archive_name))]
         name: String,
         /// Accept the suggested archive summary without prompting.
@@ -93,10 +93,10 @@ Examples:
     /// Restore an archived item to the category it was archived from.
     #[command(after_help = "\
 Examples:
-  tk unarchive Projects/apollo   Restore \"apollo\" to 1-Projects")]
+  ishi unarchive Projects/apollo   Restore \"apollo\" to 1-Projects")]
     Unarchive {
         /// Qualified `<OriginCategory>/<name>` of the archived item, as
-        /// shown by `tk list archive`.
+        /// shown by `ishi list archive`.
         #[arg(add = ArgValueCompleter::new(complete_unarchive_name))]
         name: String,
     },
@@ -148,7 +148,7 @@ fn complete_item_name(
     let Ok(cwd) = env::current_dir() else {
         return vec![];
     };
-    let Ok(ws) = Workspace::discover(&cwd, home_tick_toml().as_deref()) else {
+    let Ok(ws) = Workspace::discover(&cwd, home_ishi_toml().as_deref()) else {
         return vec![];
     };
     names(&ws)
@@ -175,7 +175,7 @@ fn complete_unarchive_name(current: &OsStr) -> Vec<CompletionCandidate> {
 }
 
 /// Writes the `clap_complete::env` registration snippet for `shell` — shell
-/// glue that re-invokes `tk` (via `$PATH`) at completion time — rather than
+/// glue that re-invokes `ishi` (via `$PATH`) at completion time — rather than
 /// a static per-command script.
 fn render_completions(shell: CompletionShell) -> Vec<u8> {
     let mut buf = Vec::new();
@@ -186,7 +186,7 @@ fn render_completions(shell: CompletionShell) -> Vec<u8> {
         CompletionShell::Powershell => &Powershell,
     };
     completer
-        .write_registration("COMPLETE", "tk", "tk", "tk", &mut buf)
+        .write_registration("COMPLETE", "ishi", "ishi", "ishi", &mut buf)
         .expect("writing to an in-memory buffer never fails");
     buf
 }
@@ -214,13 +214,13 @@ impl From<ListCategory> for Category {
 
 #[derive(Debug, PartialEq, Subcommand)]
 enum ConfigAction {
-    /// Write a new `.tick.toml` (or `~/.tick.toml` with `-g`) populated
+    /// Write a new `.ishi.toml` (or `~/.ishi.toml` with `-g`) populated
     /// with the built-in defaults.
     Init {
         #[arg(short = 'g', long = "global")]
         global: bool,
     },
-    /// Open `.tick.toml` (or `~/.tick.toml` with `-g`) in `$EDITOR`,
+    /// Open `.ishi.toml` (or `~/.ishi.toml` with `-g`) in `$EDITOR`,
     /// creating it with the default config first if it doesn't exist yet.
     Edit {
         #[arg(short = 'g', long = "global")]
@@ -261,19 +261,19 @@ impl NewCategory {
     }
 }
 
-/// Resolves `~/.tick.toml`, or `None` if `$HOME` isn't set.
-fn home_tick_toml() -> Option<PathBuf> {
-    env::var_os("HOME").map(|home| PathBuf::from(home).join(".tick.toml"))
+/// Resolves `~/.ishi.toml`, or `None` if `$HOME` isn't set.
+fn home_ishi_toml() -> Option<PathBuf> {
+    env::var_os("HOME").map(|home| PathBuf::from(home).join(".ishi.toml"))
 }
 
 /// Computes the local-vs-global config target: the path to write/open, and
-/// its human-readable display form (`"./.tick.toml"` or `"~/.tick.toml"`).
+/// its human-readable display form (`"./.ishi.toml"` or `"~/.ishi.toml"`).
 fn config_target(cwd: &Path, global: bool) -> anyhow::Result<(PathBuf, String)> {
     Ok(if global {
-        let path = home_tick_toml().context("$HOME is not set")?;
-        (path, "~/.tick.toml".to_string())
+        let path = home_ishi_toml().context("$HOME is not set")?;
+        (path, "~/.ishi.toml".to_string())
     } else {
-        (cwd.join(".tick.toml"), "./.tick.toml".to_string())
+        (cwd.join(".ishi.toml"), "./.ishi.toml".to_string())
     })
 }
 
@@ -284,7 +284,7 @@ fn run_daily_command(ws: &Workspace) -> anyhow::Result<()> {
     let editor = RealEditor;
     if let cli::DailyOutcome::Created(path) = cli::run_daily(ws, &editor)? {
         println!("Created {}", cli::display_path(ws, &path));
-        println!("Next: tk list to see it, or tk status for an overview.");
+        println!("Next: ishi list to see it, or ishi status for an overview.");
     }
     Ok(())
 }
@@ -296,15 +296,15 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     let cwd = env::current_dir().context("failed to determine current directory")?;
-    let home_config = home_tick_toml();
+    let home_config = home_ishi_toml();
 
     match cli.command {
         Commands::Init { name } => {
             let message = cli::run_init(&cwd, name.as_deref(), home_config.as_deref())?;
             println!("{message}");
             match name.as_deref() {
-                Some(n) => println!("Next: cd {n} && tk new to capture your first note."),
-                None => println!("Next: tk new to capture your first note."),
+                Some(n) => println!("Next: cd {n} && ishi new to capture your first note."),
+                None => println!("Next: ishi new to capture your first note."),
             }
         }
         Commands::Daily => {
@@ -335,7 +335,7 @@ fn main() -> anyhow::Result<()> {
             let mut ui = TerminalUi;
             let path = cli::run_new(&ws, &editor, &mut ui, category.into_kind(), filename, yes)?;
             println!("Created {}", cli::display_path(&ws, &path));
-            println!("Next: tk list to see it, or tk status for an overview.");
+            println!("Next: ishi list to see it, or ishi status for an overview.");
         }
         Commands::Config {
             action: Some(ConfigAction::Init { global }),
@@ -357,8 +357,8 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Config { action: None } => {
             let (path, _display) = config_target(&cwd, false)?;
-            let (config, origins) = tick::config::Config::resolve(&path, home_config.as_deref())?;
-            print!("{}", tick::config::render_effective(&config, &origins));
+            let (config, origins) = ishi::config::Config::resolve(&path, home_config.as_deref())?;
+            print!("{}", ishi::config::render_effective(&config, &origins));
         }
         Commands::List { category, filter } => {
             let ws = Workspace::discover(&cwd, home_config.as_deref())
@@ -413,7 +413,7 @@ mod tests {
 
     #[test]
     fn parses_new_with_filename() {
-        let cli = Cli::parse_from(["tk", "new", "my-file"]);
+        let cli = Cli::parse_from(["ishi", "new", "my-file"]);
 
         assert_eq!(
             cli.command,
@@ -427,7 +427,7 @@ mod tests {
 
     #[test]
     fn parses_new_project() {
-        let cli = Cli::parse_from(["tk", "new", "--project", "website-redesign"]);
+        let cli = Cli::parse_from(["ishi", "new", "--project", "website-redesign"]);
 
         assert_eq!(
             cli.command,
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn parses_new_area() {
-        let cli = Cli::parse_from(["tk", "new", "--area", "health"]);
+        let cli = Cli::parse_from(["ishi", "new", "--area", "health"]);
 
         assert_eq!(
             cli.command,
@@ -461,7 +461,7 @@ mod tests {
 
     #[test]
     fn parses_new_resource() {
-        let cli = Cli::parse_from(["tk", "new", "--resource", "recipe-ideas"]);
+        let cli = Cli::parse_from(["ishi", "new", "--resource", "recipe-ideas"]);
 
         assert_eq!(
             cli.command,
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn parses_new_yes_flag() {
-        let cli = Cli::parse_from(["tk", "new", "--yes"]);
+        let cli = Cli::parse_from(["ishi", "new", "--yes"]);
 
         assert_eq!(
             cli.command,
@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn parses_new_yes_short_flag() {
-        let cli = Cli::parse_from(["tk", "new", "-y"]);
+        let cli = Cli::parse_from(["ishi", "new", "-y"]);
 
         assert_eq!(
             cli.command,
@@ -506,14 +506,14 @@ mod tests {
 
     #[test]
     fn rejects_conflicting_category_flags() {
-        let result = Cli::try_parse_from(["tk", "new", "--project", "--area", "x"]);
+        let result = Cli::try_parse_from(["ishi", "new", "--project", "--area", "x"]);
 
         assert!(result.is_err());
     }
 
     #[test]
     fn parses_new_daily() {
-        let cli = Cli::parse_from(["tk", "new", "--daily"]);
+        let cli = Cli::parse_from(["ishi", "new", "--daily"]);
 
         assert_eq!(
             cli.command,
@@ -530,35 +530,35 @@ mod tests {
 
     #[test]
     fn rejects_new_daily_with_filename() {
-        let result = Cli::try_parse_from(["tk", "new", "--daily", "x"]);
+        let result = Cli::try_parse_from(["ishi", "new", "--daily", "x"]);
 
         assert!(result.is_err());
     }
 
     #[test]
     fn rejects_new_daily_with_project() {
-        let result = Cli::try_parse_from(["tk", "new", "--daily", "--project"]);
+        let result = Cli::try_parse_from(["ishi", "new", "--daily", "--project"]);
 
         assert!(result.is_err());
     }
 
     #[test]
     fn parses_daily() {
-        let cli = Cli::parse_from(["tk", "daily"]);
+        let cli = Cli::parse_from(["ishi", "daily"]);
 
         assert_eq!(cli.command, Commands::Daily);
     }
 
     #[test]
     fn parses_status() {
-        let cli = Cli::parse_from(["tk", "status"]);
+        let cli = Cli::parse_from(["ishi", "status"]);
 
         assert_eq!(cli.command, Commands::Status);
     }
 
     #[test]
     fn parses_move() {
-        let cli = Cli::parse_from(["tk", "move", "my-file", "project"]);
+        let cli = Cli::parse_from(["ishi", "move", "my-file", "project"]);
 
         assert_eq!(
             cli.command,
@@ -572,7 +572,7 @@ mod tests {
 
     #[test]
     fn parses_mv_alias() {
-        let cli = Cli::parse_from(["tk", "mv", "my-file", "archive"]);
+        let cli = Cli::parse_from(["ishi", "mv", "my-file", "archive"]);
 
         assert_eq!(
             cli.command,
@@ -586,7 +586,7 @@ mod tests {
 
     #[test]
     fn parses_archive() {
-        let cli = Cli::parse_from(["tk", "archive", "my-file"]);
+        let cli = Cli::parse_from(["ishi", "archive", "my-file"]);
 
         assert_eq!(
             cli.command,
@@ -599,7 +599,7 @@ mod tests {
 
     #[test]
     fn parses_archive_yes_flag() {
-        let cli = Cli::parse_from(["tk", "archive", "my-file", "--yes"]);
+        let cli = Cli::parse_from(["ishi", "archive", "my-file", "--yes"]);
 
         assert_eq!(
             cli.command,
@@ -612,7 +612,7 @@ mod tests {
 
     #[test]
     fn parses_move_yes_flag() {
-        let cli = Cli::parse_from(["tk", "move", "my-file", "archive", "-y"]);
+        let cli = Cli::parse_from(["ishi", "move", "my-file", "archive", "-y"]);
 
         assert_eq!(
             cli.command,
@@ -626,14 +626,14 @@ mod tests {
 
     #[test]
     fn rejects_archive_with_category_argument() {
-        let result = Cli::try_parse_from(["tk", "archive", "my-file", "archive"]);
+        let result = Cli::try_parse_from(["ishi", "archive", "my-file", "archive"]);
 
         assert!(result.is_err());
     }
 
     #[test]
     fn parses_unarchive() {
-        let cli = Cli::parse_from(["tk", "unarchive", "Projects/my-file"]);
+        let cli = Cli::parse_from(["ishi", "unarchive", "Projects/my-file"]);
 
         assert_eq!(
             cli.command,
@@ -645,21 +645,21 @@ mod tests {
 
     #[test]
     fn rejects_unarchive_with_category_argument() {
-        let result = Cli::try_parse_from(["tk", "unarchive", "Projects/my-file", "project"]);
+        let result = Cli::try_parse_from(["ishi", "unarchive", "Projects/my-file", "project"]);
 
         assert!(result.is_err());
     }
 
     #[test]
     fn parses_review() {
-        let cli = Cli::parse_from(["tk", "review"]);
+        let cli = Cli::parse_from(["ishi", "review"]);
 
         assert_eq!(cli.command, Commands::Review);
     }
 
     #[test]
     fn rejects_daily_with_filename() {
-        let result = Cli::try_parse_from(["tk", "daily", "x"]);
+        let result = Cli::try_parse_from(["ishi", "daily", "x"]);
 
         assert!(result.is_err());
     }
@@ -707,7 +707,7 @@ mod tests {
 
     #[test]
     fn parses_init_with_name() {
-        let cli = Cli::parse_from(["tk", "init", "my-para"]);
+        let cli = Cli::parse_from(["ishi", "init", "my-para"]);
 
         assert_eq!(
             cli.command,
@@ -719,14 +719,14 @@ mod tests {
 
     #[test]
     fn parses_init_without_name() {
-        let cli = Cli::parse_from(["tk", "init"]);
+        let cli = Cli::parse_from(["ishi", "init"]);
 
         assert_eq!(cli.command, Commands::Init { name: None });
     }
 
     #[test]
     fn parses_config_init_with_no_flag() {
-        let cli = Cli::parse_from(["tk", "config", "init"]);
+        let cli = Cli::parse_from(["ishi", "config", "init"]);
 
         assert_eq!(
             cli.command,
@@ -738,7 +738,7 @@ mod tests {
 
     #[test]
     fn parses_config_init_global_short_flag() {
-        let cli = Cli::parse_from(["tk", "config", "init", "-g"]);
+        let cli = Cli::parse_from(["ishi", "config", "init", "-g"]);
 
         assert_eq!(
             cli.command,
@@ -750,7 +750,7 @@ mod tests {
 
     #[test]
     fn parses_config_init_global_long_flag() {
-        let cli = Cli::parse_from(["tk", "config", "init", "--global"]);
+        let cli = Cli::parse_from(["ishi", "config", "init", "--global"]);
 
         assert_eq!(
             cli.command,
@@ -762,7 +762,7 @@ mod tests {
 
     #[test]
     fn parses_config_edit_with_no_flag() {
-        let cli = Cli::parse_from(["tk", "config", "edit"]);
+        let cli = Cli::parse_from(["ishi", "config", "edit"]);
 
         assert_eq!(
             cli.command,
@@ -774,7 +774,7 @@ mod tests {
 
     #[test]
     fn parses_config_edit_global_short_flag() {
-        let cli = Cli::parse_from(["tk", "config", "edit", "-g"]);
+        let cli = Cli::parse_from(["ishi", "config", "edit", "-g"]);
 
         assert_eq!(
             cli.command,
@@ -786,7 +786,7 @@ mod tests {
 
     #[test]
     fn parses_config_edit_global_long_flag() {
-        let cli = Cli::parse_from(["tk", "config", "edit", "--global"]);
+        let cli = Cli::parse_from(["ishi", "config", "edit", "--global"]);
 
         assert_eq!(
             cli.command,
@@ -798,14 +798,14 @@ mod tests {
 
     #[test]
     fn parses_config_bare_as_action_none() {
-        let cli = Cli::parse_from(["tk", "config"]);
+        let cli = Cli::parse_from(["ishi", "config"]);
 
         assert_eq!(cli.command, Commands::Config { action: None });
     }
 
     #[test]
     fn parses_list_project() {
-        let cli = Cli::parse_from(["tk", "list", "project"]);
+        let cli = Cli::parse_from(["ishi", "list", "project"]);
 
         assert_eq!(
             cli.command,
@@ -818,7 +818,7 @@ mod tests {
 
     #[test]
     fn parses_list_project_with_filter() {
-        let cli = Cli::parse_from(["tk", "list", "project", "web"]);
+        let cli = Cli::parse_from(["ishi", "list", "project", "web"]);
 
         assert_eq!(
             cli.command,
@@ -831,7 +831,7 @@ mod tests {
 
     #[test]
     fn parses_list_area() {
-        let cli = Cli::parse_from(["tk", "list", "area"]);
+        let cli = Cli::parse_from(["ishi", "list", "area"]);
 
         assert_eq!(
             cli.command,
@@ -844,7 +844,7 @@ mod tests {
 
     #[test]
     fn parses_list_resource() {
-        let cli = Cli::parse_from(["tk", "list", "resource"]);
+        let cli = Cli::parse_from(["ishi", "list", "resource"]);
 
         assert_eq!(
             cli.command,
@@ -857,7 +857,7 @@ mod tests {
 
     #[test]
     fn parses_list_inbox() {
-        let cli = Cli::parse_from(["tk", "list", "inbox"]);
+        let cli = Cli::parse_from(["ishi", "list", "inbox"]);
 
         assert_eq!(
             cli.command,
@@ -870,7 +870,7 @@ mod tests {
 
     #[test]
     fn parses_list_archive() {
-        let cli = Cli::parse_from(["tk", "list", "archive"]);
+        let cli = Cli::parse_from(["ishi", "list", "archive"]);
 
         assert_eq!(
             cli.command,
@@ -883,7 +883,7 @@ mod tests {
 
     #[test]
     fn parses_completions_bash() {
-        let cli = Cli::parse_from(["tk", "completions", "bash"]);
+        let cli = Cli::parse_from(["ishi", "completions", "bash"]);
 
         assert_eq!(
             cli.command,
@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn parses_completions_zsh() {
-        let cli = Cli::parse_from(["tk", "completions", "zsh"]);
+        let cli = Cli::parse_from(["ishi", "completions", "zsh"]);
 
         assert_eq!(
             cli.command,
@@ -907,7 +907,7 @@ mod tests {
 
     #[test]
     fn parses_completions_fish() {
-        let cli = Cli::parse_from(["tk", "completions", "fish"]);
+        let cli = Cli::parse_from(["ishi", "completions", "fish"]);
 
         assert_eq!(
             cli.command,
@@ -919,7 +919,7 @@ mod tests {
 
     #[test]
     fn parses_completions_powershell() {
-        let cli = Cli::parse_from(["tk", "completions", "powershell"]);
+        let cli = Cli::parse_from(["ishi", "completions", "powershell"]);
 
         assert_eq!(
             cli.command,
@@ -931,14 +931,14 @@ mod tests {
 
     #[test]
     fn rejects_unsupported_completions_shell() {
-        let result = Cli::try_parse_from(["tk", "completions", "tcsh"]);
+        let result = Cli::try_parse_from(["ishi", "completions", "tcsh"]);
 
         assert!(result.is_err());
     }
 
     #[test]
     fn rejects_missing_completions_shell() {
-        let result = Cli::try_parse_from(["tk", "completions"]);
+        let result = Cli::try_parse_from(["ishi", "completions"]);
 
         assert!(result.is_err());
     }
@@ -957,7 +957,7 @@ mod tests {
 
     #[test]
     fn completions_cover_every_top_level_command() {
-        let candidates = complete(&["tk", ""], 1);
+        let candidates = complete(&["ishi", ""], 1);
 
         for command in [
             "init",
@@ -1000,15 +1000,15 @@ mod tests {
     /// tests in parallel within one process.
     static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-    /// Writes an empty `.tick.toml` marker at `root` (matching
+    /// Writes an empty `.ishi.toml` marker at `root` (matching
     /// `workspace::init`'s discovery contract) and returns a `Workspace`
     /// rooted there with default config, for tests that need a real
     /// on-disk PARA system for `Workspace::discover` to find via cwd.
     fn init_workspace(root: &Path) -> Workspace {
-        fs::write(root.join(".tick.toml"), "").unwrap();
+        fs::write(root.join(".ishi.toml"), "").unwrap();
         Workspace {
             root: root.to_path_buf(),
-            config: tick::config::Config::default(),
+            config: ishi::config::Config::default(),
         }
     }
 
@@ -1018,17 +1018,17 @@ mod tests {
         let original_cwd = env::current_dir().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let ws = init_workspace(dir.path());
-        tick::items::create(&ws, tick::category::Category::Inbox, "my-file", "hello").unwrap();
-        tick::items::create(
+        ishi::items::create(&ws, ishi::category::Category::Inbox, "my-file", "hello").unwrap();
+        ishi::items::create(
             &ws,
-            tick::category::Category::Project,
+            ishi::category::Category::Project,
             "website-redesign",
             "",
         )
         .unwrap();
         env::set_current_dir(dir.path()).unwrap();
 
-        let candidates = complete(&["tk", "move", ""], 2);
+        let candidates = complete(&["ishi", "move", ""], 2);
 
         env::set_current_dir(original_cwd).unwrap();
         let mut candidates = candidates;
@@ -1042,11 +1042,11 @@ mod tests {
         let original_cwd = env::current_dir().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let ws = init_workspace(dir.path());
-        tick::items::create(&ws, tick::category::Category::Inbox, "meeting-notes", "").unwrap();
-        tick::items::create(&ws, tick::category::Category::Resource, "meeting-notes", "").unwrap();
+        ishi::items::create(&ws, ishi::category::Category::Inbox, "meeting-notes", "").unwrap();
+        ishi::items::create(&ws, ishi::category::Category::Resource, "meeting-notes", "").unwrap();
         env::set_current_dir(dir.path()).unwrap();
 
-        let candidates = complete(&["tk", "move", ""], 2);
+        let candidates = complete(&["ishi", "move", ""], 2);
 
         env::set_current_dir(original_cwd).unwrap();
         let mut candidates = candidates;
@@ -1063,11 +1063,11 @@ mod tests {
         let original_cwd = env::current_dir().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let ws = init_workspace(dir.path());
-        tick::items::create(&ws, tick::category::Category::Inbox, "meeting-notes", "").unwrap();
-        tick::items::create(&ws, tick::category::Category::Resource, "meeting-notes", "").unwrap();
+        ishi::items::create(&ws, ishi::category::Category::Inbox, "meeting-notes", "").unwrap();
+        ishi::items::create(&ws, ishi::category::Category::Resource, "meeting-notes", "").unwrap();
         env::set_current_dir(dir.path()).unwrap();
 
-        let candidates = complete(&["tk", "move", "meeti"], 2);
+        let candidates = complete(&["ishi", "move", "meeti"], 2);
 
         env::set_current_dir(original_cwd).unwrap();
         let mut candidates = candidates;
@@ -1084,11 +1084,11 @@ mod tests {
         let original_cwd = env::current_dir().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let ws = init_workspace(dir.path());
-        tick::items::create(&ws, tick::category::Category::Inbox, "meeting-notes", "").unwrap();
-        tick::items::create(&ws, tick::category::Category::Resource, "meeting-notes", "").unwrap();
+        ishi::items::create(&ws, ishi::category::Category::Inbox, "meeting-notes", "").unwrap();
+        ishi::items::create(&ws, ishi::category::Category::Resource, "meeting-notes", "").unwrap();
         env::set_current_dir(dir.path()).unwrap();
 
-        let candidates = complete(&["tk", "move", "inbox/meeti"], 2);
+        let candidates = complete(&["ishi", "move", "inbox/meeti"], 2);
 
         env::set_current_dir(original_cwd).unwrap();
         assert_eq!(candidates, vec!["inbox/meeting-notes"]);
@@ -1101,18 +1101,18 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let ws = init_workspace(dir.path());
         let path =
-            tick::items::create(&ws, tick::category::Category::Inbox, "meeting-notes", "").unwrap();
-        tick::items::mv(
+            ishi::items::create(&ws, ishi::category::Category::Inbox, "meeting-notes", "").unwrap();
+        ishi::items::mv(
             &ws,
-            tick::category::Category::Inbox,
+            ishi::category::Category::Inbox,
             &path,
             "meeting-notes",
-            tick::category::Category::Archive,
+            ishi::category::Category::Archive,
         )
         .unwrap();
         env::set_current_dir(dir.path()).unwrap();
 
-        let candidates = complete(&["tk", "unarchive", ""], 2);
+        let candidates = complete(&["ishi", "unarchive", ""], 2);
 
         env::set_current_dir(original_cwd).unwrap();
         assert_eq!(candidates, vec!["Inbox/meeting-notes"]);
@@ -1124,20 +1124,20 @@ mod tests {
         let original_cwd = env::current_dir().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let ws = init_workspace(dir.path());
-        tick::items::create(&ws, tick::category::Category::Project, "apollo", "").unwrap();
+        ishi::items::create(&ws, ishi::category::Category::Project, "apollo", "").unwrap();
         let path =
-            tick::items::create(&ws, tick::category::Category::Inbox, "meeting-notes", "").unwrap();
-        tick::items::mv(
+            ishi::items::create(&ws, ishi::category::Category::Inbox, "meeting-notes", "").unwrap();
+        ishi::items::mv(
             &ws,
-            tick::category::Category::Inbox,
+            ishi::category::Category::Inbox,
             &path,
             "meeting-notes",
-            tick::category::Category::Archive,
+            ishi::category::Category::Archive,
         )
         .unwrap();
         env::set_current_dir(dir.path()).unwrap();
 
-        let candidates = complete(&["tk", "archive", ""], 2);
+        let candidates = complete(&["ishi", "archive", ""], 2);
 
         env::set_current_dir(original_cwd).unwrap();
         assert_eq!(candidates, vec!["apollo"]);
@@ -1149,20 +1149,20 @@ mod tests {
         let original_cwd = env::current_dir().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let ws = init_workspace(dir.path());
-        tick::items::create(&ws, tick::category::Category::Project, "apollo", "").unwrap();
+        ishi::items::create(&ws, ishi::category::Category::Project, "apollo", "").unwrap();
         let path =
-            tick::items::create(&ws, tick::category::Category::Inbox, "meeting-notes", "").unwrap();
-        tick::items::mv(
+            ishi::items::create(&ws, ishi::category::Category::Inbox, "meeting-notes", "").unwrap();
+        ishi::items::mv(
             &ws,
-            tick::category::Category::Inbox,
+            ishi::category::Category::Inbox,
             &path,
             "meeting-notes",
-            tick::category::Category::Archive,
+            ishi::category::Category::Archive,
         )
         .unwrap();
         env::set_current_dir(dir.path()).unwrap();
 
-        let mut candidates = complete(&["tk", "move", ""], 2);
+        let mut candidates = complete(&["ishi", "move", ""], 2);
 
         env::set_current_dir(original_cwd).unwrap();
         candidates.sort();
@@ -1175,21 +1175,21 @@ mod tests {
         let original_cwd = env::current_dir().unwrap();
         let first = tempfile::tempdir().unwrap();
         let first_ws = init_workspace(first.path());
-        tick::items::create(&first_ws, tick::category::Category::Inbox, "first-item", "").unwrap();
+        ishi::items::create(&first_ws, ishi::category::Category::Inbox, "first-item", "").unwrap();
         let second = tempfile::tempdir().unwrap();
         let second_ws = init_workspace(second.path());
-        tick::items::create(
+        ishi::items::create(
             &second_ws,
-            tick::category::Category::Inbox,
+            ishi::category::Category::Inbox,
             "second-item",
             "",
         )
         .unwrap();
 
         env::set_current_dir(first.path()).unwrap();
-        let first_candidates = complete(&["tk", "move", ""], 2);
+        let first_candidates = complete(&["ishi", "move", ""], 2);
         env::set_current_dir(second.path()).unwrap();
-        let second_candidates = complete(&["tk", "move", ""], 2);
+        let second_candidates = complete(&["ishi", "move", ""], 2);
 
         env::set_current_dir(original_cwd).unwrap();
         assert_eq!(first_candidates, vec!["first-item"]);
@@ -1204,7 +1204,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         env::set_current_dir(dir.path()).unwrap();
 
-        let candidates = complete(&["tk", "move", ""], 2);
+        let candidates = complete(&["ishi", "move", ""], 2);
 
         env::set_current_dir(original_cwd).unwrap();
         assert!(candidates.is_empty());

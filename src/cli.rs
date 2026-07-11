@@ -176,7 +176,7 @@ pub fn run_init(
         _ => format!("Created {} in {display}", report.created.join(", ")),
     }];
 
-    let (config, _origins) = config::Config::resolve(&target.join(".tick.toml"), home_config)?;
+    let (config, _origins) = config::Config::resolve(&target.join(".ishi.toml"), home_config)?;
     let archive_dir = &config.category_dirs[Category::Archive as usize];
 
     let editor_report = workspace::write_editor_excludes(&target, archive_dir)?;
@@ -203,7 +203,7 @@ pub fn run_init(
 
 /// Writes the default config to `path` and returns the exact confirmation
 /// message `main` prints. `display` is the caller-computed human-readable
-/// form (`"./.tick.toml"` or `"~/.tick.toml"`).
+/// form (`"./.ishi.toml"` or `"~/.ishi.toml"`).
 pub fn run_config_init(path: &Path, display: &str) -> anyhow::Result<String> {
     config::init(path)?;
     Ok(format!("Created {display}"))
@@ -438,7 +438,7 @@ pub fn run_move(
 }
 
 /// Locates `name` via `items::locate` and moves it back to the category it
-/// was archived from — sugar for `tk move <OriginCategory>/<name>
+/// was archived from — sugar for `ishi move <OriginCategory>/<name>
 /// <OriginCategory-as-target>`, so un-archiving never requires spelling out
 /// a destination the qualified name already encodes (move.md 005's
 /// `<OriginCategory>/<name>` addressing). Rejects `name` if it doesn't
@@ -470,8 +470,8 @@ pub fn run_unarchive(ws: &Workspace, name: &str) -> anyhow::Result<String> {
 }
 
 /// Names of every item in a live (non-`Archive`) category, across all four
-/// live categories, sourced from `ws` at call time. Used for `tk move`/
-/// `tk archive`'s tab-completion — the shapes `items::locate` matches. A
+/// live categories, sourced from `ws` at call time. Used for `ishi move`/
+/// `ishi archive`'s tab-completion — the shapes `items::locate` matches. A
 /// basename occurring in more than one live category is qualified as
 /// `<category>/<name>` (matching `display_path`'s rendering) so this never
 /// offers a bare name `items::locate` would now reject as ambiguous
@@ -511,7 +511,7 @@ pub fn live_item_names(ws: &Workspace) -> Vec<String> {
 }
 
 /// Qualified `<OriginCategory>/<name>` names of every archived item,
-/// sourced from `ws` at call time. Used for `tk unarchive`'s (and `tk
+/// sourced from `ws` at call time. Used for `ishi unarchive`'s (and `ishi
 /// move`'s) tab-completion — the shape `items::locate` matches via its
 /// `name.split_once('/')` branch.
 pub fn archived_item_names(ws: &Workspace) -> Vec<String> {
@@ -1249,7 +1249,7 @@ mod tests {
     fn run_init_uses_targets_existing_custom_archive_name() {
         let dir = tempdir().unwrap();
         fs::write(
-            dir.path().join(".tick.toml"),
+            dir.path().join(".ishi.toml"),
             "[folders]\narchive = \"9-Attic\"\n",
         )
         .unwrap();
@@ -1279,21 +1279,21 @@ mod tests {
     #[test]
     fn run_config_init_creates_file_and_returns_message() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join(".tick.toml");
+        let path = dir.path().join(".ishi.toml");
 
-        let message = run_config_init(&path, "./.tick.toml").unwrap();
+        let message = run_config_init(&path, "./.ishi.toml").unwrap();
 
-        assert_eq!(message, "Created ./.tick.toml");
+        assert_eq!(message, "Created ./.ishi.toml");
         assert!(path.exists());
     }
 
     #[test]
     fn run_config_init_surfaces_already_exists_error() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join(".tick.toml");
+        let path = dir.path().join(".ishi.toml");
         fs::write(&path, "custom content").unwrap();
 
-        let err = run_config_init(&path, "./.tick.toml").unwrap_err();
+        let err = run_config_init(&path, "./.ishi.toml").unwrap_err();
 
         assert!(err.to_string().contains(&path.display().to_string()));
         assert!(err.to_string().contains("already exists"));
@@ -1319,7 +1319,7 @@ mod tests {
         }
 
         let dir = tempdir().unwrap();
-        let path = dir.path().join(".tick.toml");
+        let path = dir.path().join(".ishi.toml");
         fs::write(&path, "custom content").unwrap();
         let editor = RecordingEditor {
             opened_path: RefCell::new(None),
@@ -1352,7 +1352,7 @@ mod tests {
         }
 
         let dir = tempdir().unwrap();
-        let path = dir.path().join(".tick.toml");
+        let path = dir.path().join(".ishi.toml");
         let editor = RecordingEditor {
             opened_path: RefCell::new(None),
         };
@@ -1380,7 +1380,7 @@ mod tests {
         }
 
         let dir = tempdir().unwrap();
-        let path = dir.path().join("missing-parent").join(".tick.toml");
+        let path = dir.path().join("missing-parent").join(".ishi.toml");
         let editor = PanicEditorOnOpen;
 
         let err = run_config_edit(&path, &editor);

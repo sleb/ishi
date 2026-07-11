@@ -1,4 +1,4 @@
-# User Stories: `tk init`
+# User Stories: `ishi init`
 
 ## User Story 001
 
@@ -8,17 +8,17 @@
 
 ### Use Case
 
-- **As a** new Tick user starting from an empty (or existing) working directory
-- **I want to** run `tk init` with no arguments
+- **As a** new Ishi user starting from an empty (or existing) working directory
+- **I want to** run `ishi init` with no arguments
 - **so that** I get a ready-to-use PARA structure right here, without deciding on a project name first
 
 ### Acceptance Criteria
 
 - **Scenario:** Initialize in the current directory
 - **Given:** I am in a directory that is not already a PARA system
-- **When:** I run `tk init`
-- **Then:** Tick creates `0-Inbox`, `1-Projects`, `2-Areas`, `3-Resources`, and `4-Archive` in the current directory
-- **and Then:** Tick prints `Created PARA system in .`
+- **When:** I run `ishi init`
+- **Then:** Ishi creates `0-Inbox`, `1-Projects`, `2-Areas`, `3-Resources`, and `4-Archive` in the current directory
+- **and Then:** Ishi prints `Created PARA system in .`
 
 ---
 
@@ -30,17 +30,17 @@
 
 ### Use Case
 
-- **As a** Tick user setting up a new PARA system alongside other work
-- **I want to** run `tk init <name>`
+- **As a** Ishi user setting up a new PARA system alongside other work
+- **I want to** run `ishi init <name>`
 - **so that** the new system is scaffolded into its own subdirectory, instead of taking over the directory I'm already in
 
 ### Acceptance Criteria
 
 - **Scenario:** Initialize into a named subdirectory
 - **Given:** I am in a directory that does not contain a subdirectory called `<name>`
-- **When:** I run `tk init my-para`
-- **Then:** Tick creates `./my-para` containing `0-Inbox`, `1-Projects`, `2-Areas`, `3-Resources`, and `4-Archive`
-- **and Then:** Tick prints `Created PARA system in ./my-para`
+- **When:** I run `ishi init my-para`
+- **Then:** Ishi creates `./my-para` containing `0-Inbox`, `1-Projects`, `2-Areas`, `3-Resources`, and `4-Archive`
+- **and Then:** Ishi prints `Created PARA system in ./my-para`
 
 ---
 
@@ -52,7 +52,7 @@
 
 ### Use Case
 
-- **As a** Tick user who might run `init` more than once, or who deleted a category folder by accident
+- **As a** Ishi user who might run `init` more than once, or who deleted a category folder by accident
 - **I want to** have `init` create only the category folders that don't already exist
 - **so that** I can repair or complete a partial PARA system without it complaining or duplicating what's already there
 
@@ -60,15 +60,15 @@
 
 - **Scenario:** Re-initializing a complete PARA system is a no-op
 - **Given:** the target directory (current directory, or `./<name>` if given) already contains all five category folders
-- **When:** I run `tk init` (with or without a name)
-- **Then:** Tick creates no new files or directories
-- **and Then:** Tick reports that the PARA system is already complete, with no changes made
+- **When:** I run `ishi init` (with or without a name)
+- **Then:** Ishi creates no new files or directories
+- **and Then:** Ishi reports that the PARA system is already complete, with no changes made
 
 - **Scenario:** Re-initializing a partial PARA system fills in the gaps
 - **Given:** the target directory contains some but not all of the five category folders (e.g. `0-Inbox` exists but `1-Projects` does not)
-- **When:** I run `tk init` (with or without a name)
-- **Then:** Tick creates only the missing category folders, leaving existing ones (and their contents) untouched
-- **and Then:** Tick reports which folders it created
+- **When:** I run `ishi init` (with or without a name)
+- **Then:** Ishi creates only the missing category folders, leaving existing ones (and their contents) untouched
+- **and Then:** Ishi reports which folders it created
 
 ---
 
@@ -80,7 +80,7 @@
 
 ### Use Case
 
-- **As a** Tick user who might typo or reuse a name that collides with an existing file
+- **As a** Ishi user who might typo or reuse a name that collides with an existing file
 - **I want to** be told when `<name>` already exists as a regular file
 - **so that** I understand why `init` didn't succeed instead of seeing a raw filesystem error
 
@@ -88,15 +88,15 @@
 
 - **Scenario:** Target name collides with an existing file
 - **Given:** `./<name>` already exists but is a regular file, not a directory
-- **When:** I run `tk init <name>`
-- **Then:** Tick prints an error explaining that `./<name>` already exists and isn't a directory
+- **When:** I run `ishi init <name>`
+- **Then:** Ishi prints an error explaining that `./<name>` already exists and isn't a directory
 - **and Then:** no files or directories are created or modified
 
 - **Scenario:** Target name collides with an existing directory that has unrelated contents
 - **Given:** `./<name>` already exists as a directory containing files or folders that aren't among the five category folders
-- **When:** I run `tk init <name>`
-- **Then:** Tick treats it the same as any other existing directory: it creates whichever of the five category folders are missing, and leaves the unrelated contents untouched (see Story 003)
-- **and Then:** Tick does **not** treat the unrelated contents as an error
+- **When:** I run `ishi init <name>`
+- **Then:** Ishi treats it the same as any other existing directory: it creates whichever of the five category folders are missing, and leaves the unrelated contents untouched (see Story 003)
+- **and Then:** Ishi does **not** treat the unrelated contents as an error
 
 ---
 
@@ -108,7 +108,7 @@
 
 ### Use Case
 
-- **As a** Tick user setting up a new PARA system
+- **As a** Ishi user setting up a new PARA system
 - **I want to** have `init` configure my editor to skip the archive folder in fuzzy-find/quick-open
 - **so that** the archive stays out of my way from the start, without me needing to configure it myself or wait until I first archive something
 
@@ -116,35 +116,35 @@
 
 - **Scenario:** `init` creates a Zed exclude entry when none exists
 - **Given:** the target directory (current directory, or `./<name>` if given) has no `.zed/settings.json`
-- **When:** I run `tk init` (with or without a name)
-- **Then:** Tick creates `.zed/settings.json` at the target with `file_scan_exclude` containing the configured archive folder name (`4-Archive` by default)
+- **When:** I run `ishi init` (with or without a name)
+- **Then:** Ishi creates `.zed/settings.json` at the target with `file_scan_exclude` containing the configured archive folder name (`4-Archive` by default)
 
 - **Scenario:** `init` creates a VS Code exclude entry when none exists
 - **Given:** the target directory has no `.vscode/settings.json`
-- **When:** I run `tk init` (with or without a name)
-- **Then:** Tick creates `.vscode/settings.json` at the target with both `files.exclude` and `search.exclude` mapping the configured archive folder name to `true`
+- **When:** I run `ishi init` (with or without a name)
+- **Then:** Ishi creates `.vscode/settings.json` at the target with both `files.exclude` and `search.exclude` mapping the configured archive folder name to `true`
 
 - **Scenario:** An existing `.zed/settings.json` is left untouched, with instructions printed instead
 - **Given:** the target directory already has a `.zed/settings.json` (with any contents)
-- **When:** I run `tk init`
-- **Then:** Tick does not modify `.zed/settings.json`
-- **and Then:** Tick prints instructions telling me to manually add the configured archive folder name to `file_scan_exclude` in `.zed/settings.json`
+- **When:** I run `ishi init`
+- **Then:** Ishi does not modify `.zed/settings.json`
+- **and Then:** Ishi prints instructions telling me to manually add the configured archive folder name to `file_scan_exclude` in `.zed/settings.json`
 
 - **Scenario:** An existing `.vscode/settings.json` is left untouched, with instructions printed instead
 - **Given:** the target directory already has a `.vscode/settings.json` (with any contents)
-- **When:** I run `tk init`
-- **Then:** Tick does not modify `.vscode/settings.json`
-- **and Then:** Tick prints instructions telling me to manually add the configured archive folder name to `files.exclude`/`search.exclude` in `.vscode/settings.json`
+- **When:** I run `ishi init`
+- **Then:** Ishi does not modify `.vscode/settings.json`
+- **and Then:** Ishi prints instructions telling me to manually add the configured archive folder name to `files.exclude`/`search.exclude` in `.vscode/settings.json`
 
-- **Scenario:** A custom archive folder name from `.tick.toml` is what gets referenced
-- **Given:** the target's `.tick.toml` sets `[folders] archive = "9-Attic"`, with no `.zed/settings.json` or `.vscode/settings.json` yet
-- **When:** I run `tk init`
-- **Then:** the exclude entries Tick creates name `9-Attic`, not `4-Archive`
+- **Scenario:** A custom archive folder name from `.ishi.toml` is what gets referenced
+- **Given:** the target's `.ishi.toml` sets `[folders] archive = "9-Attic"`, with no `.zed/settings.json` or `.vscode/settings.json` yet
+- **When:** I run `ishi init`
+- **Then:** the exclude entries Ishi creates name `9-Attic`, not `4-Archive`
 
 - **Scenario:** Re-running `init` when the settings files already exist keeps printing instructions
-- **Given:** `.zed/settings.json` and `.vscode/settings.json` already exist at the target (from a previous `tk init` run or created manually)
-- **When:** I run `tk init` again
-- **Then:** Tick makes no changes to either file, and prints the same manual-update instructions again
+- **Given:** `.zed/settings.json` and `.vscode/settings.json` already exist at the target (from a previous `ishi init` run or created manually)
+- **When:** I run `ishi init` again
+- **Then:** Ishi makes no changes to either file, and prints the same manual-update instructions again
 
 ---
 
@@ -156,7 +156,7 @@
 
 ### Use Case
 
-- **As a** Tick user who works in this PARA system alongside an AI agent
+- **As a** Ishi user who works in this PARA system alongside an AI agent
 - **I want to** have `init` set up `CLAUDE.md` telling my agent to skip the archive by default
 - **so that** the agent's context stays focused on what's active from the moment I set up the system, not just after I've run my first archiving move
 
@@ -164,21 +164,21 @@
 
 - **Scenario:** `init` creates `CLAUDE.md` with the instruction when none exists
 - **Given:** the target directory (current directory, or `./<name>` if given) has no `CLAUDE.md`
-- **When:** I run `tk init` (with or without a name)
-- **Then:** Tick creates a `CLAUDE.md` at the target root containing an instruction not to read files under the configured archive folder (`4-Archive` by default) unless the user explicitly asks or there's a strong, specific reason to
+- **When:** I run `ishi init` (with or without a name)
+- **Then:** Ishi creates a `CLAUDE.md` at the target root containing an instruction not to read files under the configured archive folder (`4-Archive` by default) unless the user explicitly asks or there's a strong, specific reason to
 
 - **Scenario:** An existing `CLAUDE.md` is left untouched, with instructions printed instead
 - **Given:** the target directory already has a `CLAUDE.md` (with or without the archive instruction)
-- **When:** I run `tk init`
-- **Then:** Tick does not modify `CLAUDE.md`
-- **and Then:** Tick prints instructions telling me to manually add the archive-skip instruction to `CLAUDE.md`, naming the configured archive folder
+- **When:** I run `ishi init`
+- **Then:** Ishi does not modify `CLAUDE.md`
+- **and Then:** Ishi prints instructions telling me to manually add the archive-skip instruction to `CLAUDE.md`, naming the configured archive folder
 
 - **Scenario:** A custom archive folder name is what the generated instruction names
-- **Given:** the target's `.tick.toml` sets `[folders] archive = "9-Attic"`, with no `CLAUDE.md` yet
-- **When:** I run `tk init`
-- **Then:** the instruction Tick writes names `9-Attic`, not `4-Archive`
+- **Given:** the target's `.ishi.toml` sets `[folders] archive = "9-Attic"`, with no `CLAUDE.md` yet
+- **When:** I run `ishi init`
+- **Then:** the instruction Ishi writes names `9-Attic`, not `4-Archive`
 
 - **Scenario:** Re-running `init` when `CLAUDE.md` already exists keeps printing instructions
-- **Given:** `CLAUDE.md` already exists at the target (from a previous `tk init` run or created manually)
-- **When:** I run `tk init` again
-- **Then:** Tick doesn't modify it, and prints the same manual-update instructions again
+- **Given:** `CLAUDE.md` already exists at the target (from a previous `ishi init` run or created manually)
+- **When:** I run `ishi init` again
+- **Then:** Ishi doesn't modify it, and prints the same manual-update instructions again

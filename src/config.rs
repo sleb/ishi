@@ -113,7 +113,7 @@ pub enum Source {
 }
 
 impl Source {
-    /// The exact annotation `tk config` prints after each key, per
+    /// The exact annotation `ishi config` prints after each key, per
     /// config.md 001 (`# default`, `# user`, `# local`, `# local, overrides user`).
     pub fn comment(self) -> &'static str {
         match self {
@@ -308,14 +308,14 @@ impl Config {
 }
 
 /// Embedded at compile time; single source of truth for the schema's
-/// contents, checked into the repo at assets/tick.schema.json.
-const SCHEMA_JSON: &str = include_str!("../assets/tick.schema.json");
+/// contents, checked into the repo at assets/ishi.schema.json.
+const SCHEMA_JSON: &str = include_str!("../assets/ishi.schema.json");
 
 /// The exact filename `#:schema` points at and that `init` writes,
 /// documented in README.md's "Schema and autocomplete" section.
-const SCHEMA_FILENAME: &str = ".tick.schema.json";
+const SCHEMA_FILENAME: &str = ".ishi.schema.json";
 
-/// Renders `Config::default()` as the exact `.tick.toml` shape documented in
+/// Renders `Config::default()` as the exact `.ishi.toml` shape documented in
 /// README.md's Configuration section — a leading `#:schema` directive
 /// (config.md 006) followed by nested `[folders]`/`[defaults]`/
 /// `[templates]` tables.
@@ -323,7 +323,7 @@ pub fn default_toml() -> String {
     let defaults = Config::default();
     let templates = &defaults.templates;
     format!(
-        r#"#:schema ./.tick.schema.json
+        r#"#:schema ./.ishi.schema.json
 
 [folders]
 inbox = "{}"
@@ -366,14 +366,14 @@ resource = """
 }
 
 /// Writes `default_toml()` to `path`, alongside a sibling
-/// `.tick.schema.json` that the `#:schema` directive in `default_toml()`
+/// `.ishi.schema.json` that the `#:schema` directive in `default_toml()`
 /// refers to. Errors with `AlreadyExists` (and leaves `path` untouched) if
 /// a file is already there, rather than overwriting a user's
 /// customizations.
 ///
 /// The schema file is written first: if that write fails, `init` has
 /// created nothing the caller needs to clean up, and a retry hits the same
-/// state. Writing `.tick.toml` first would risk leaving behind a config
+/// state. Writing `.ishi.toml` first would risk leaving behind a config
 /// referencing a schema that was never written, with no way to retry the
 /// schema write alone (the second call would fail `AlreadyExists` first).
 pub fn init(path: &Path) -> Result<(), ConfigError> {
@@ -503,7 +503,7 @@ mod tests {
     #[test]
     fn resolve_neither_file_present_returns_default_with_all_default_origins() {
         let dir = tempdir().unwrap();
-        let local_path = dir.path().join(".tick.toml");
+        let local_path = dir.path().join(".ishi.toml");
 
         let (config, origins) = Config::resolve(&local_path, None).unwrap();
 
@@ -520,7 +520,7 @@ mod tests {
     #[test]
     fn resolve_only_local_overrides_one_key() {
         let dir = tempdir().unwrap();
-        let local_path = dir.path().join(".tick.toml");
+        let local_path = dir.path().join(".ishi.toml");
         fs::write(
             &local_path,
             r#"
@@ -541,8 +541,8 @@ mod tests {
     #[test]
     fn resolve_only_user_overrides_one_key() {
         let dir = tempdir().unwrap();
-        let local_path = dir.path().join(".tick.toml");
-        let home_path = dir.path().join("home.tick.toml");
+        let local_path = dir.path().join(".ishi.toml");
+        let home_path = dir.path().join("home.ishi.toml");
         fs::write(
             &home_path,
             r#"
@@ -563,8 +563,8 @@ mod tests {
     #[test]
     fn resolve_user_and_local_set_disjoint_keys() {
         let dir = tempdir().unwrap();
-        let local_path = dir.path().join(".tick.toml");
-        let home_path = dir.path().join("home.tick.toml");
+        let local_path = dir.path().join(".ishi.toml");
+        let home_path = dir.path().join("home.ishi.toml");
         fs::write(
             &local_path,
             r#"
@@ -593,8 +593,8 @@ mod tests {
     #[test]
     fn resolve_user_and_local_set_same_key_local_wins() {
         let dir = tempdir().unwrap();
-        let local_path = dir.path().join(".tick.toml");
-        let home_path = dir.path().join("home.tick.toml");
+        let local_path = dir.path().join(".ishi.toml");
+        let home_path = dir.path().join("home.ishi.toml");
         fs::write(
             &local_path,
             r#"
@@ -621,7 +621,7 @@ mod tests {
     #[test]
     fn resolve_parses_nested_toml_shape_matching_readme() {
         let dir = tempdir().unwrap();
-        let local_path = dir.path().join(".tick.toml");
+        let local_path = dir.path().join(".ishi.toml");
         fs::write(
             &local_path,
             r#"
@@ -662,7 +662,7 @@ mod tests {
     #[test]
     fn resolve_ignores_legacy_flat_toml_shape() {
         let dir = tempdir().unwrap();
-        let local_path = dir.path().join(".tick.toml");
+        let local_path = dir.path().join(".ishi.toml");
         fs::write(
             &local_path,
             r#"
@@ -760,7 +760,7 @@ mod tests {
     #[test]
     fn empty_file_returns_default_values() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join(".tick.toml");
+        let path = dir.path().join(".ishi.toml");
         fs::write(&path, "").unwrap();
 
         let (config, _origins) = Config::resolve(&path, None).unwrap();
@@ -771,7 +771,7 @@ mod tests {
     #[test]
     fn default_toml_round_trips_to_config_default() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join(".tick.toml");
+        let path = dir.path().join(".ishi.toml");
         fs::write(&path, default_toml()).unwrap();
 
         let (config, _origins) = Config::resolve(&path, None).unwrap();
@@ -781,7 +781,7 @@ mod tests {
 
     #[test]
     fn default_toml_starts_with_schema_directive() {
-        assert!(default_toml().starts_with("#:schema ./.tick.schema.json\n"));
+        assert!(default_toml().starts_with("#:schema ./.ishi.schema.json\n"));
     }
 
     #[test]
@@ -813,7 +813,7 @@ mod tests {
     #[test]
     fn init_creates_file_when_absent() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join(".tick.toml");
+        let path = dir.path().join(".ishi.toml");
 
         init(&path).unwrap();
 
@@ -825,11 +825,11 @@ mod tests {
     #[test]
     fn init_writes_schema_file_alongside_config() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join(".tick.toml");
+        let path = dir.path().join(".ishi.toml");
 
         init(&path).unwrap();
 
-        let schema_path = dir.path().join(".tick.schema.json");
+        let schema_path = dir.path().join(".ishi.schema.json");
         assert!(schema_path.exists());
         assert_eq!(fs::read_to_string(&schema_path).unwrap(), SCHEMA_JSON);
     }
@@ -1016,13 +1016,13 @@ mod tests {
     #[test]
     fn init_refuses_when_file_already_exists() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join(".tick.toml");
+        let path = dir.path().join(".ishi.toml");
         fs::write(&path, "custom content").unwrap();
 
         let err = init(&path).unwrap_err();
 
         assert!(matches!(err, ConfigError::AlreadyExists { .. }));
         assert_eq!(fs::read_to_string(&path).unwrap(), "custom content");
-        assert!(!dir.path().join(".tick.schema.json").exists());
+        assert!(!dir.path().join(".ishi.schema.json").exists());
     }
 }

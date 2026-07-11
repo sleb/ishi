@@ -56,7 +56,7 @@ impl Category {
     }
 }
 
-/// What `tk new`/`tk daily` create — a different vocabulary from
+/// What `ishi new`/`ishi daily` create — a different vocabulary from
 /// `Category` (where an item is filed). See design.md's "Filing
 /// vocabulary vs. creation vocabulary" for why these are two types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

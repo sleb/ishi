@@ -1,4 +1,4 @@
-# Tick: High-Level Design
+# Ishi: High-Level Design
 
 ## Goals
 
@@ -25,7 +25,7 @@ so it can be tested without a real shell, editor, or terminal.
  └──────────┬───────────┘  └──────┘  parsing (see `gist` below)
             ▼
        ┌─────────┐
-       │ config  │  .tick.toml (folder names, default extension)
+       │ config  │  .ishi.toml (folder names, default extension)
        └─────────┘
 
  ┌──────────┐
@@ -91,18 +91,18 @@ should be able to create it directly).
 
 ### `config`
 
-Parses `.tick.toml` and layers it across three sources — built-in defaults,
-`~/.tick.toml` (user), `./.tick.toml` (local) — independently per key, so a
+Parses `.ishi.toml` and layers it across three sources — built-in defaults,
+`~/.ishi.toml` (user), `./.ishi.toml` (local) — independently per key, so a
 local file can override just one setting without repeating the rest.
 Provenance (which layer each effective value came from) is tracked
-alongside the resolved config, for `tk config`'s annotated output.
+alongside the resolved config, for `ishi config`'s annotated output.
 
 Responsibilities:
 - Resolve effective config from the three layers (`Config::resolve`).
 - Know the built-in defaults (folder names, default extension, templates).
 - Render config as TOML, both a fresh scaffold (`init`) and an
-  origin-annotated view of the resolved config (`tk config`).
-- Own `.tick.toml`'s JSON Schema and write it alongside a new config file
+  origin-annotated view of the resolved config (`ishi config`).
+- Own `.ishi.toml`'s JSON Schema and write it alongside a new config file
   so editors get autocomplete/validation.
 - Render a template string, substituting `{{date}}`, `{{title}}`, `{{time}}`,
   `{{uuid}}` (`{{cursor}}` is left untouched — that's `editor`'s marker).
@@ -120,13 +120,13 @@ leaves nothing to clean up.
 Answers "where do things live?" for every other component.
 
 - Discovers the workspace root by walking up from a starting path looking
-  for `.tick.toml` or the five category dirs, layering in a user-level
+  for `.ishi.toml` or the five category dirs, layering in a user-level
   config via `config::resolve` along the way.
 - Maps a `Category` to its directory under the root.
 - `init` creates a target directory (if needed) and whichever of the five
   category dirs are missing under it — safe to run against a directory with
   unrelated existing contents, and safe to re-run against a partially
-  complete PARA layout. It does not write `.tick.toml`; the dirs alone are
+  complete PARA layout. It does not write `.ishi.toml`; the dirs alone are
   enough for `discover`'s fallback to recognize the workspace later.
 - Create-only scaffolding for editor/agent ergonomics: writes
   `.zed/settings.json` and/or `.vscode/settings.json` excluding the archive
@@ -137,16 +137,16 @@ Answers "where do things live?" for every other component.
 
 ### `gist`
 
-An external crate ([sleb/gist](https://github.com/sleb/gist)), not a tick
+An external crate ([sleb/gist](https://github.com/sleb/gist)), not an ishi
 module — pinned in `Cargo.toml`. Parses a single note's Markdown/frontmatter
 (headings, tags, links, code fences) with no filesystem access of its own;
-tick calls it with content already read from disk.
+ishi calls it with content already read from disk.
 
 `items` and `editor` each independently depend on `gist` for one primitive —
 finding the first Markdown heading after any frontmatter block — rather than
 depending on each other, which preserves the module boundary between them.
 `gist`'s broader backlink/tag/link-resolution surface (built for a different
-note-vault tool) isn't currently used by tick.
+note-vault tool) isn't currently used by ishi.
 
 ### `items`
 
@@ -199,7 +199,7 @@ editor process or racing the system clock.
 - **Filename suggestion** (pure): first Markdown heading (via `gist`,
   frontmatter-skip then first-non-blank heading), slugified. Falling back,
   in order, to the first non-blank line in the body, then a timestamp-based
-  name. These fallbacks are tick-specific, since `gist` only surfaces the
+  name. These fallbacks are ishi-specific, since `gist` only surfaces the
   heading.
 
 ### `review`
@@ -227,13 +227,13 @@ argv-to-call-to-print shim and everything else is unit-testable. Notably:
   `items::create`, but diverge because daily notes have a create-or-reopen
   lifecycle `run_new`'s capture-or-named-file shape doesn't fit — `main`
   dispatches `Kind::Daily` to `run_daily` instead of `run_new`.
-- `run_move` backs both `tk move <item> <category>` and the `tk archive
+- `run_move` backs both `ishi move <item> <category>` and the `ishi archive
   <item>` alias (which is `run_move` with `target` fixed to
   `Category::Archive` and no category argument accepted). Moving into
   `Archive` additionally prompts for a one-line summary (via `Ui::confirm`)
   and stamps it on the item before the move; moving to any other category
   is unprompted.
-- Bare `tk config` (no subcommand) resolves and renders the effective config
+- Bare `ishi config` (no subcommand) resolves and renders the effective config
   directly, bypassing `cli`, since `config::resolve`/`render_effective` are
   already infallible/pure enough not to need a `cli` wrapper.
 - `cli` owns the pure item-name-set logic backing tab-completion
@@ -246,7 +246,7 @@ argv-to-call-to-print shim and everything else is unit-testable. Notably:
   (completions.md 006). `live_item_names` qualifies a name with its category
   (`<category>/<name>`, lowercase, matching `display_path`'s rendering)
   whenever that basename occurs in more than one live category — never
-  offering a bare name `tk move` would now reject as ambiguous (move.md
+  offering a bare name `ishi move` would now reject as ambiguous (move.md
   006).
 
 ## Appendix: notable invariants
@@ -262,7 +262,7 @@ argv-to-call-to-print shim and everything else is unit-testable. Notably:
 - `run_config_edit` distinguishes "created" from "already existed" by
   matching `config::init`'s `AlreadyExists` error variant rather than a
   `path.exists()` pre-check, avoiding a TOCTOU gap.
-- `tk completions <shell>` generates a dynamic-completion registration
+- `ishi completions <shell>` generates a dynamic-completion registration
   snippet (`clap_complete::env`), not a static `aot` script — its content is
-  shell glue plus a callback into `tk` at completion time, not a per-command
+  shell glue plus a callback into `ishi` at completion time, not a per-command
   listing baked in at generation time.

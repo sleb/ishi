@@ -20,7 +20,7 @@ pub struct InitReport {
 #[derive(Debug, Error)]
 pub enum WorkspaceError {
     #[error(
-        "no PARA workspace found in {start} or any parent directory ({missing}). Run \"tk init\" to create one here."
+        "no PARA workspace found in {start} or any parent directory ({missing}). Run \"ishi init\" to create one here."
     )]
     NotFound { start: String, missing: String },
     #[error("failed to load config")]
@@ -46,7 +46,7 @@ fn missing_category_dirs(dir: &Path) -> String {
         .collect();
 
     match missing.as_slice() {
-        [] => "no .tick.toml found".to_string(),
+        [] => "no .ishi.toml found".to_string(),
         [one] => format!("no {one} directory found"),
         many => format!("no {} directories found", many.join(", ")),
     }
@@ -162,14 +162,14 @@ pub fn write_claude_md(target: &Path, archive_dir: &str) -> Result<ClaudeMdRepor
 
 impl Workspace {
     /// Walks up from `start` through ancestors, stopping at the first
-    /// directory containing `.tick.toml` or all five default-named
+    /// directory containing `.ishi.toml` or all five default-named
     /// category directories. `home_config`, if given, is layered in as the
     /// user-level config on both branches.
     pub fn discover(start: &Path, home_config: Option<&Path>) -> Result<Workspace, WorkspaceError> {
         for dir in start.ancestors() {
-            let tick_toml = dir.join(".tick.toml");
-            if tick_toml.exists() {
-                let (config, _origins) = Config::resolve(&tick_toml, home_config)?;
+            let ishi_toml = dir.join(".ishi.toml");
+            if ishi_toml.exists() {
+                let (config, _origins) = Config::resolve(&ishi_toml, home_config)?;
                 return Ok(Workspace {
                     root: dir.to_path_buf(),
                     config,
@@ -182,7 +182,7 @@ impl Workspace {
                 .iter()
                 .all(|name| dir.join(name).is_dir())
             {
-                let (config, _origins) = Config::resolve(&dir.join(".tick.toml"), home_config)?;
+                let (config, _origins) = Config::resolve(&dir.join(".ishi.toml"), home_config)?;
                 return Ok(Workspace {
                     root: dir.to_path_buf(),
                     config,
@@ -215,9 +215,9 @@ mod tests {
     }
 
     #[test]
-    fn discovers_root_via_tick_toml() {
+    fn discovers_root_via_ishi_toml() {
         let dir = tempdir().unwrap();
-        fs::write(dir.path().join(".tick.toml"), "").unwrap();
+        fs::write(dir.path().join(".ishi.toml"), "").unwrap();
         let nested = dir.path().join("a/b");
         fs::create_dir_all(&nested).unwrap();
 
@@ -255,7 +255,7 @@ mod tests {
 
         let message = err.to_string();
         assert!(message.contains("0-Inbox, 1-Projects, 2-Areas, 3-Resources, 4-Archive"));
-        assert!(message.contains("Run \"tk init\" to create one here."));
+        assert!(message.contains("Run \"ishi init\" to create one here."));
     }
 
     #[test]
@@ -273,7 +273,7 @@ mod tests {
     fn discover_layers_user_config_when_no_local_file_present() {
         let dir = tempdir().unwrap();
         create_category_dirs(dir.path());
-        let home_config = dir.path().join("home.tick.toml");
+        let home_config = dir.path().join("home.ishi.toml");
         fs::write(
             &home_config,
             r#"
@@ -292,14 +292,14 @@ mod tests {
     fn discover_layers_both_user_and_local_config() {
         let dir = tempdir().unwrap();
         fs::write(
-            dir.path().join(".tick.toml"),
+            dir.path().join(".ishi.toml"),
             r#"
             [folders]
             archive = "Archive"
             "#,
         )
         .unwrap();
-        let home_config = dir.path().join("home.tick.toml");
+        let home_config = dir.path().join("home.ishi.toml");
         fs::write(
             &home_config,
             r#"

@@ -7,7 +7,7 @@ fn new_with_filename_creates_note_via_real_dispatch() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
 
-    let output = common::tk(&["new", "my-file"], dir.path(), None, None);
+    let output = common::ishi(&["new", "my-file"], dir.path(), None, None);
 
     assert!(output.status.success());
     let expected_path = dir
@@ -17,7 +17,7 @@ fn new_with_filename_creates_note_via_real_dispatch() {
         .join("0-Inbox/my-file.md");
     assert_eq!(
         common::stdout(&output),
-        "Created inbox/my-file.md\nNext: tk list to see it, or tk status for an overview.\n"
+        "Created inbox/my-file.md\nNext: ishi list to see it, or ishi status for an overview.\n"
     );
     assert!(expected_path.is_file());
 }
@@ -36,13 +36,13 @@ fn new_without_filename_captures_via_real_editor_and_confirm_prompt() {
     );
 
     // Empty line accepts the confirm prompt's suggested default filename.
-    let output = common::tk(&["new"], dir.path(), Some(&editor), Some("\n"));
+    let output = common::ishi(&["new"], dir.path(), Some(&editor), Some("\n"));
 
     assert!(output.status.success());
     let expected_path = dir.path().canonicalize().unwrap().join("0-Inbox/title.md");
     assert_eq!(
         common::stdout(&output),
-        "Opening $EDITOR...\nCreated inbox/title.md\nNext: tk list to see it, or tk status for an overview.\n"
+        "Opening $EDITOR...\nCreated inbox/title.md\nNext: ishi list to see it, or ishi status for an overview.\n"
     );
     assert_eq!(common::stderr(&output), "Create \"title.md\"? [title.md] ");
     let content = std::fs::read_to_string(&expected_path).unwrap();
@@ -54,7 +54,7 @@ fn new_project_flag_scaffolds_directory_via_real_dispatch() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
 
-    let output = common::tk(
+    let output = common::ishi(
         &["new", "--project", "website-redesign"],
         dir.path(),
         None,
@@ -69,7 +69,7 @@ fn new_project_flag_scaffolds_directory_via_real_dispatch() {
         .join("1-Projects/website-redesign/index.md");
     assert_eq!(
         common::stdout(&output),
-        "Created projects/website-redesign/index.md\nNext: tk list to see it, or tk status for an overview.\n"
+        "Created projects/website-redesign/index.md\nNext: ishi list to see it, or ishi status for an overview.\n"
     );
     assert!(expected_path.is_file());
 }
@@ -78,7 +78,7 @@ fn new_project_flag_scaffolds_directory_via_real_dispatch() {
 fn new_outside_workspace_surfaces_discovery_error() {
     let dir = tempdir().unwrap();
 
-    let output = common::tk(&["new", "my-file"], dir.path(), None, None);
+    let output = common::ishi(&["new", "my-file"], dir.path(), None, None);
 
     assert!(!output.status.success());
     assert!(common::stderr(&output).contains("failed to find a PARA workspace"));

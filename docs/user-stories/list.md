@@ -1,13 +1,13 @@
-# User Stories: `tk list`
+# User Stories: `ishi list`
 
-`tk list` originally just printed bare paths (one per line). These stories
+`ishi list` originally just printed bare paths (one per line). These stories
 redesign it to print a small table — **Name**, **Title**, **Updated** — so a
 user can tell what a note is about and how fresh it is without opening every
 file.
 
 Column definitions, used throughout:
 
-- **Name** — the identifier you'd pass to `tk move`/other commands: the
+- **Name** — the identifier you'd pass to `ishi move`/other commands: the
   directory name for `project`/`area`, the filename (without extension) for
   `resource`/`inbox`, and `<OriginCategory>/<name>` for `archive` (since
   archived items from different origin categories can share a bare name).
@@ -39,7 +39,7 @@ unlike sorting by Updated.
 
 ### Use Case
 
-- **As a** Tick user checking what's in a category
+- **As a** Ishi user checking what's in a category
 - **I want to** see each item's name, inferred title, and how recently it was touched
 - **so that** I can tell what a note is about and how fresh it is without opening every file
 
@@ -47,8 +47,8 @@ unlike sorting by Updated.
 
 - **Scenario:** Listing projects shows the directory name, the title from `index.md`, and days since `index.md` was last modified
 - **Given:** I am inside an initialized PARA system with two projects, `website-redesign` (`index.md` heading `# Website Redesign`, last modified 2 days ago) and `my-project` (`index.md` heading `# My Project`, last modified 21 days ago)
-- **When:** I run `tk list project`
-- **Then:** Tick prints a header row (`NAME`, `TITLE`, `UPDATED`) followed by one row per project, sorted alphabetically by name:
+- **When:** I run `ishi list project`
+- **Then:** Ishi prints a header row (`NAME`, `TITLE`, `UPDATED`) followed by one row per project, sorted alphabetically by name:
 
   ```
   NAME               TITLE              UPDATED
@@ -58,8 +58,8 @@ unlike sorting by Updated.
 
 - **Scenario:** Listing areas uses the same column format as projects
 - **Given:** I am inside an initialized PARA system with an area `health` (`index.md` heading `# Health`, last modified today)
-- **When:** I run `tk list area`
-- **Then:** Tick prints:
+- **When:** I run `ishi list area`
+- **Then:** Ishi prints:
 
   ```
   NAME     TITLE    UPDATED
@@ -68,8 +68,8 @@ unlike sorting by Updated.
 
 - **Scenario:** Listing resources/inbox uses the flat file itself, not a directory
 - **Given:** I am inside an initialized PARA system with a resource file `api-notes.md` (heading `# API Design Notes`, last modified 5 days ago)
-- **When:** I run `tk list resource`
-- **Then:** Tick prints:
+- **When:** I run `ishi list resource`
+- **Then:** Ishi prints:
   ```
   NAME        TITLE              UPDATED
   api-notes   API Design Notes   5 days ago
@@ -85,7 +85,7 @@ unlike sorting by Updated.
 
 ### Use Case
 
-- **As a** Tick user browsing the archive
+- **As a** Ishi user browsing the archive
 - **I want to** see which original category an archived item came from
 - **so that** I can tell apart, say, an archived project and an archived resource that happen to share a name
 
@@ -93,8 +93,8 @@ unlike sorting by Updated.
 
 - **Scenario:** Archive listing prefixes Name with the origin category
 - **Given:** I am inside an initialized PARA system with an archived project at `4-Archive/Projects/old-project` (heading `# Old Project`, last modified 4 months/~120 days ago) and an archived resource at `4-Archive/Resources/api-notes-v1` (heading `# API Notes v1`, last modified ~180 days ago)
-- **When:** I run `tk list archive`
-- **Then:** Tick prints Name values qualified with the origin category, sorted alphabetically by that qualified name:
+- **When:** I run `ishi list archive`
+- **Then:** Ishi prints Name values qualified with the origin category, sorted alphabetically by that qualified name:
   ```
   NAME                      TITLE            UPDATED
   Projects/old-project      Old Project      120 days ago
@@ -110,7 +110,7 @@ unlike sorting by Updated.
 
 ### Use Case
 
-- **As a** Tick user with many items in a category
+- **As a** Ishi user with many items in a category
 - **I want to** narrow the list to items whose name or title contains a word I remember
 - **so that** I don't have to scan the whole category to find the one I want
 
@@ -118,23 +118,23 @@ unlike sorting by Updated.
 
 - **Scenario:** Filter matches a substring of Name
 - **Given:** I am inside an initialized PARA system with projects `website-redesign` and `my-project`
-- **When:** I run `tk list project web`
-- **Then:** Tick prints only the `website-redesign` row
+- **When:** I run `ishi list project web`
+- **Then:** Ishi prints only the `website-redesign` row
 
 - **Scenario:** Filter matches a substring of Title even when Name doesn't contain it
 - **Given:** I am inside an initialized PARA system with a project directory named `q3-initiative` whose `index.md` heading is `# Website Redesign Phase 2`
-- **When:** I run `tk list project redesign`
-- **Then:** Tick prints the `q3-initiative` row, matched on its title rather than its name
+- **When:** I run `ishi list project redesign`
+- **Then:** Ishi prints the `q3-initiative` row, matched on its title rather than its name
 
 - **Scenario:** Filter is case-insensitive
 - **Given:** I am inside an initialized PARA system with a project `website-redesign`
-- **When:** I run `tk list project WEB`
-- **Then:** Tick prints the `website-redesign` row
+- **When:** I run `ishi list project WEB`
+- **Then:** Ishi prints the `website-redesign` row
 
 - **Scenario:** Filter matching nothing prints an empty-result message, not an error
 - **Given:** I am inside an initialized PARA system with a project `website-redesign`
-- **When:** I run `tk list project nonexistent`
-- **Then:** Tick prints `No items in Projects matching "nonexistent".` and exits successfully (no error)
+- **When:** I run `ishi list project nonexistent`
+- **Then:** Ishi prints `No items in Projects matching "nonexistent".` and exits successfully (no error)
 
 ---
 
@@ -145,7 +145,7 @@ unlike sorting by Updated.
 
 ### Use Case
 
-- **As a** Tick user checking a category I haven't used yet
+- **As a** Ishi user checking a category I haven't used yet
 - **I want to** get a clear message when there's nothing there
 - **so that** I don't mistake silent empty output for a broken command
 
@@ -153,8 +153,8 @@ unlike sorting by Updated.
 
 - **Scenario:** Empty category without a filter
 - **Given:** I am inside an initialized PARA system with no resources
-- **When:** I run `tk list resource`
-- **Then:** Tick prints `No items in Resources.` and exits successfully (no error), and no header row is printed
+- **When:** I run `ishi list resource`
+- **Then:** Ishi prints `No items in Resources.` and exits successfully (no error), and no header row is printed
 
 ---
 
@@ -165,7 +165,7 @@ unlike sorting by Updated.
 
 ### Use Case
 
-- **As a** Tick user with a note that has no Markdown heading (e.g. a quick capture I never titled)
+- **As a** Ishi user with a note that has no Markdown heading (e.g. a quick capture I never titled)
 - **I want to** still see a sensible Title column instead of a blank one
 - **so that** the table stays readable even for untitled notes
 
@@ -173,10 +173,10 @@ unlike sorting by Updated.
 
 - **Scenario:** No frontmatter and no heading
 - **Given:** I am inside an initialized PARA system with an inbox file `quick-thought.md` containing only plain text with no Markdown heading
-- **When:** I run `tk list inbox`
-- **Then:** Tick prints a row with `quick-thought` in both the Name and Title columns
+- **When:** I run `ishi list inbox`
+- **Then:** Ishi prints a row with `quick-thought` in both the Name and Title columns
 
 - **Scenario:** Frontmatter present but no heading follows it
 - **Given:** I am inside an initialized PARA system with an inbox file `quick-thought.md` containing a YAML frontmatter block followed by plain text with no heading
-- **When:** I run `tk list inbox`
-- **Then:** Tick prints a row with `quick-thought` in both the Name and Title columns — the frontmatter block itself is never mistaken for a heading
+- **When:** I run `ishi list inbox`
+- **Then:** Ishi prints a row with `quick-thought` in both the Name and Title columns — the frontmatter block itself is never mistaken for a heading

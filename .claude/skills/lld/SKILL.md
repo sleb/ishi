@@ -1,9 +1,9 @@
 ---
 name: lld
-description: Write a low-level design (LLD) doc for a tick (`tk`) feature or user-story scenario, following docs/lld/TEMPLATE.md. Use before implementing a new roadmap item or story scenario, once the story's acceptance criteria exist but before any code is written.
+description: Write a low-level design (LLD) doc for an ishi feature or user-story scenario, following docs/lld/TEMPLATE.md. Use before implementing a new roadmap item or story scenario, once the story's acceptance criteria exist but before any code is written.
 ---
 
-# `lld`: author a tick LLD from the template
+# `lld`: author an ishi LLD from the template
 
 Produces a `docs/lld/NNN-<slug>.md` document for a feature about to be
 implemented, filled out per the structure in
@@ -71,7 +71,7 @@ Follow `docs/lld/TEMPLATE.md` section by section:
   usable as-is to start writing failing tests.
 - **Implementation plan** — numbered, dependency-ordered steps ending in:
   marking the story `✅` in its `docs/user-stories/` file, updating
-  `docs/roadmap.md`, a manual smoke test with concrete `tk` invocations,
+  `docs/roadmap.md`, a manual smoke test with concrete `ishi` invocations,
   and a `cargo clippy && cargo fmt --check && cargo test` clean bar.
 
 ## After writing

@@ -12,7 +12,7 @@ fn daily_first_run_creates_non_interactively_via_real_dispatch() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
 
-    let output = common::tk(&["daily"], dir.path(), None, None);
+    let output = common::ishi(&["daily"], dir.path(), None, None);
 
     assert!(output.status.success());
     let root = dir.path().canonicalize().unwrap();
@@ -20,7 +20,7 @@ fn daily_first_run_creates_non_interactively_via_real_dispatch() {
     assert_eq!(
         common::stdout(&output),
         format!(
-            "Created inbox/{}.md\nNext: tk list to see it, or tk status for an overview.\n",
+            "Created inbox/{}.md\nNext: ishi list to see it, or ishi status for an overview.\n",
             today()
         )
     );
@@ -31,13 +31,13 @@ fn daily_first_run_creates_non_interactively_via_real_dispatch() {
 fn daily_second_run_reopens_via_real_editor_without_recreating() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
-    common::tk(&["daily"], dir.path(), None, None);
+    common::ishi(&["daily"], dir.path(), None, None);
     let root = dir.path().canonicalize().unwrap();
     let expected_path = root.join(format!("0-Inbox/{}.md", today()));
     let content_before = std::fs::read_to_string(&expected_path).unwrap();
 
     let editor = common::write_fake_editor(dir.path(), "fake-editor.sh", "exit 0");
-    let output = common::tk(&["daily"], dir.path(), Some(&editor), None);
+    let output = common::ishi(&["daily"], dir.path(), Some(&editor), None);
 
     assert!(output.status.success());
     assert_eq!(common::stdout(&output), "Opening $EDITOR...\n");
@@ -51,9 +51,9 @@ fn daily_second_run_reopens_via_real_editor_without_recreating() {
 fn daily_reopen_without_editor_set_surfaces_error() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
-    common::tk(&["daily"], dir.path(), None, None);
+    common::ishi(&["daily"], dir.path(), None, None);
 
-    let output = common::tk(&["daily"], dir.path(), None, None);
+    let output = common::ishi(&["daily"], dir.path(), None, None);
 
     assert!(!output.status.success());
     assert!(common::stderr(&output).contains("$EDITOR"));
@@ -64,7 +64,7 @@ fn new_daily_flag_reaches_same_behavior_as_daily_command() {
     let dir = tempdir().unwrap();
     common::init_workspace(dir.path());
 
-    let output = common::tk(&["new", "--daily"], dir.path(), None, None);
+    let output = common::ishi(&["new", "--daily"], dir.path(), None, None);
 
     assert!(output.status.success());
     let root = dir.path().canonicalize().unwrap();
@@ -72,7 +72,7 @@ fn new_daily_flag_reaches_same_behavior_as_daily_command() {
     assert_eq!(
         common::stdout(&output),
         format!(
-            "Created inbox/{}.md\nNext: tk list to see it, or tk status for an overview.\n",
+            "Created inbox/{}.md\nNext: ishi list to see it, or ishi status for an overview.\n",
             today()
         )
     );
