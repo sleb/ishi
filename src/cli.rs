@@ -520,6 +520,20 @@ pub fn archived_item_names(ws: &Workspace) -> Vec<String> {
         .unwrap_or_else(|_| Vec::new())
 }
 
+/// Whether `candidate` (as produced by `live_item_names`/`archived_item_names`,
+/// possibly qualified as `<category>/<name>`) should be offered for the
+/// in-progress argument text `current`. True if `current` prefixes the whole
+/// candidate (covers bare candidates and fully-typed qualified prefixes like
+/// `inbox/meeti`), or if `current` prefixes just the `<name>` part after the
+/// last `/` (covers typing a colliding item's bare name, e.g. `meeti`, before
+/// any category qualifier).
+pub fn completion_candidate_matches(candidate: &str, current: &str) -> bool {
+    candidate.starts_with(current)
+        || candidate
+            .rsplit_once('/')
+            .is_some_and(|(_, name)| name.starts_with(current))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2301,5 +2315,32 @@ mod tests {
         let names = archived_item_names(&ws);
 
         assert_eq!(names, vec!["Resources/my-file"]);
+    }
+
+    #[test]
+    fn completion_candidate_matches_matches_qualified_candidates_name_segment() {
+        assert!(completion_candidate_matches("inbox/meeting-notes", "meeti"));
+    }
+
+    #[test]
+    fn completion_candidate_matches_matches_full_qualified_prefix() {
+        assert!(completion_candidate_matches(
+            "inbox/meeting-notes",
+            "inbox/meeti"
+        ));
+        assert!(!completion_candidate_matches(
+            "resources/meeting-notes",
+            "inbox/meeti"
+        ));
+    }
+
+    #[test]
+    fn completion_candidate_matches_matches_bare_candidate_prefix() {
+        assert!(completion_candidate_matches("website-redesign", "website"));
+    }
+
+    #[test]
+    fn completion_candidate_matches_rejects_non_prefix() {
+        assert!(!completion_candidate_matches("inbox/meeting-notes", "zzz"));
     }
 }

@@ -17,13 +17,11 @@
 | `status`      | Done                                                                            |
 | `review`      | Done                                                                            |
 | `config`      | Done                                                                            |
-| `completions` | Done, except Story 006 below                                                    |
+| `completions` | Done                                                                             |
 
 ## Outstanding stories
 
-| Story | Summary | LLD |
-| --- | --- | --- |
-| [completions.md](user-stories/completions.md) Story 006 | Typing a bare prefix of a colliding item's name (not just an empty or already-qualified prefix) still offers its qualified completion forms | none yet — write one before implementing |
+None currently.
 
 Implementation notes for finished work (design rationale, which LLD each
 story shipped under) live in git history and in `docs/design.md`, not

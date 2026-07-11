@@ -150,7 +150,7 @@
 ## User Story 006
 
 - **Summary:** Typing a bare prefix of a colliding item's name still offers its qualified completion forms
-- **Status:** ⬜
+- **Status:** ✅
 - **Depends on:** Story 005 (the qualification this extends matching for)
 
 ### Use Case
