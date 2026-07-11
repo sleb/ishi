@@ -11,8 +11,8 @@ provenance notes, not live links.
 | `init`        | Stories 001–004 done; Stories 005–006 (editor exclude config + `CLAUDE.md` archive instruction, create-if-missing else print manual instructions) not started                                                                                          |
 | `new`         | Done — all of user-stories/new.md 001–013 completed, including per-category templates (`daily`/`project`/`area`/`resource`), `{{time}}`/`{{uuid}}` placeholders, and editor-capture with no filename into `--project`/`--area`/`--resource` (story 010) |
 | `daily`       | Done                                                                                                                                                                                                                                                    |
-| `move`        | Stories 001–002, 004 done, per `docs/lld/012-tk-move.md` (Story 001), the unwrap-rejection guard added directly to `items::mv` (Story 002), and `docs/lld/014-archive-summary-stamp.md` (Story 004, the summary stamp)                                  |
-| `archive`     | Not started — thin sugar alias for `tk move <item> archive` (move.md Story 003); inherits Story 004 (the summary stamp) for free once it lands on `move`                                                                                               |
+| `move`        | Stories 001–004 done, per `docs/lld/012-tk-move.md` (Story 001), the unwrap-rejection guard added directly to `items::mv` (Story 002), the `archive` alias (Story 003, see below), and `docs/lld/014-archive-summary-stamp.md` (Story 004, the summary stamp). Un-archiving (moving an item back out of `Archive`) is sketched in `docs/design.md` but has no corresponding move.md story yet and isn't implemented — `items::locate` still only searches `Category::archivable()`, never `Archive` itself |
+| `archive`     | Done — thin sugar alias for `tk move <item> archive` (move.md Story 003); inherits Story 004 (the summary stamp) for free by delegating to `move`                                                                                                       |
 | `list`        | Done — Stories 001–005 complete (base NAME/TITLE/UPDATED columns, archive qualified naming, substring filter, empty-category message, Title-falls-back-to-Name)                                                                                         |
 | `status`      | Stories 001–004 done (per-category counts per `docs/lld/009-status-counts.md`; per-item Project/Area rows with `updated:`/`reviewed:` per `docs/lld/010-status-per-item.md`; `last_reviewed` write side per `docs/lld/013-review-keep-archive-skip.md`) |
 | `review`      | Done — Stories 001–003 complete, per `docs/lld/011-review-walk.md` and `docs/lld/013-review-keep-archive-skip.md`                                                                                                                                       |
@@ -45,8 +45,11 @@ that are docs-only and deliberately _not_ drawn here).
      +-------+-------+
              |         \
              v          v
-        7. review    6c. archive alias (not started)
-        (done)
+        7. review    6c. archive alias (done)
+        (done)              |
+                             v
+                   6d. un-archiving (not started,
+                   no move.md story drafted yet)
 ```
 
 - `list` → `review` (list.md 001 cites review.md 001's "raw days ago"
@@ -215,7 +218,36 @@ header+options form and gained `Ui::info`, its first real callers. Stories
 
 - Covers user-stories/review.md 001–003, all done.
 
+### 6c. `tk archive` alias
+
+Sugar for `tk move <item> archive` (item 6): `Commands::Archive { name:
+String, yes: bool }` dispatches straight to `cli::run_move(ws, &mut ui,
+&name, Category::Archive, yes)`. No new `cli`/`items` logic of its own —
+it inherits item 6's summary-stamp affordance automatically since that
+lives on `move`'s `archive` branch, not on this alias.
+
+Landed alongside a broader non-interactive/scripting UX pass (not itself
+tied to a written user story): a `--yes`/`-y` flag on `new`, `move`, and
+`archive` to skip confirmation/summary prompts, interactive prompts and
+headers redirected to stderr so stdout stays pipeable, clearer
+workspace-not-found errors, and "Next steps" hints on `init`/`new`/
+`daily` output. Worth a docs/user-stories update if these become load-bearing
+behavior rather than polish.
+
+- Covers user-stories/move.md 003, done.
+
 ## Next
+
+### 6d. Un-archiving (moving an item back out of `Archive`)
+
+`docs/design.md`'s `items::locate` and `items::mv` sections now describe
+target behavior for moving an item *out of* `Archive` (keyed off the
+target category, not the origin subfolder recorded under `Archive`), and
+cite it as "move.md Story 005" — but no such story exists yet in
+`docs/user-stories/move.md`, and `items::locate` still only searches
+`Category::archivable()` (never `Archive`), so this isn't implemented.
+Needs a user-story pass (Story 005 drafted into move.md) before an LLD or
+implementation. Depends on item 6 (`move`, done).
 
 ### 1c. `tk init` archive self-healing affordances
 
@@ -231,22 +263,13 @@ existing files every run), `init` only ever *creates* these files — if a
 `.zed/settings.json`, `.vscode/settings.json`, or `CLAUDE.md` already
 exists, Tick leaves it untouched and prints instructions for the user to
 update it manually, rather than trying to parse and merge into
-unknown-shape content. Neither affordance existed before these stories
-were written — not sketched in `docs/design.md` — so this needs an LLD
-pass before implementation. Depends on item "init" (done).
+unknown-shape content. `docs/design.md` now notes these trigger from
+`run_init` (not `run_move`), but module ownership for the writers isn't
+decided beyond that — neither affordance existed before these stories
+were written, so this still needs an LLD pass before implementation.
+Depends on item "init" (done).
 
 - Covers user-stories/init.md 005–006, not started.
-
-### 6c. `tk archive` alias
-
-Sugar for `tk move <item> archive` (item 6): a `Commands::Archive { name:
-String }` with no destination argument, dispatching straight to
-`cli::run_move(ws, &mut ui, &name, Category::Archive)`. No new `cli`/
-`items` logic of its own — it inherits item 6's summary-stamp affordance
-automatically since that lives on `move`'s `archive` branch, not on this
-alias. Depends on item 6.
-
-- Covers user-stories/move.md 003.
 
 ## Later
 
@@ -264,6 +287,22 @@ The `#:schema` JSON Schema file is done, per `docs/lld/007-config-schema.md`.
 Bare `tk config` (provenance display) is done, per `docs/lld/014-config-show.md`.
 
 - Covers user-stories/config.md 001, 003–006.
+
+## Remaining sequence
+
+Everything else on the roadmap is done. Two items are left, in this order:
+
+1. **1c. `tk init` archive self-healing affordances** (init.md 005–006) —
+   unblocked today (`init` is done); needs an LLD pass first since neither
+   affordance nor its module ownership is designed yet beyond "triggers
+   from `run_init`."
+2. **6d. Un-archiving** — blocked on writing the user story itself:
+   `docs/design.md` describes target behavior and cites it as "move.md
+   Story 005," but that story doesn't exist in `docs/user-stories/move.md`
+   yet. Draft the story first, then LLD, then implement (extending
+   `items::locate`/`items::mv` to handle `Archive` as a source).
+
+Neither blocks the other — they can land in either order or in parallel.
 
 ## Explicitly out of scope for this pass
 
