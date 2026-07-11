@@ -4,34 +4,14 @@
 > deleted once its story ships (see `docs/lld/TEMPLATE.md`), so these are
 > provenance notes, not live links.
 
-## Remaining work
-
-One item left.
-
-### 1. Un-archiving (moving an item back out of `Archive`)
-
-**Not started.** No user-stories/move.md story exists yet for this.
-
-`docs/design.md`'s `items::locate` and `items::mv` sections describe target
-behavior for moving an item _out of_ `Archive` (keyed off the target
-category, not the origin subfolder recorded under `Archive`), and cite it
-as "move.md Story 005" — but that story doesn't exist in
-`docs/user-stories/move.md` yet, and `items::locate` still only searches
-`Category::archivable()`, never `Archive` itself.
-
-**Why not done:** blocked on writing the user story itself. Draft Story
-005 into move.md first, then an LLD, then implement (extending
-`items::locate`/`items::mv` to handle `Archive` as a source). Depends on
-`move`, which is done.
-
-## Everything else is done
+## Everything is done
 
 | Command       | Notes                                                                           |
 | ------------- | ------------------------------------------------------------------------------- |
 | `init`        | Done                                                                            |
 | `new`         | Done                                                                            |
 | `daily`       | Done                                                                            |
-| `move`        | Stories 001, 002, 004 done. (Story 005, un-archiving, is remaining work above.) |
+| `move`        | Done                                                                            |
 | `archive`     | Done                                                                            |
 | `list`        | Done                                                                            |
 | `status`      | Done                                                                            |

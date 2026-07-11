@@ -1730,6 +1730,62 @@ mod tests {
     }
 
     #[test]
+    fn run_move_unarchives_a_directory_item() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let archived = dir
+            .path()
+            .join("4-Archive/Projects/website-redesign/index.md");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, "# Website Redesign\n").unwrap();
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
+
+        let message = run_move(
+            &ws,
+            &mut ui,
+            "Projects/website-redesign",
+            Category::Project,
+            false,
+        )
+        .unwrap();
+
+        let dest_path = dir.path().join("1-Projects/website-redesign");
+        assert!(message.contains("Moved"));
+        assert_eq!(
+            fs::read_to_string(dest_path.join("index.md")).unwrap(),
+            "# Website Redesign\n"
+        );
+    }
+
+    #[test]
+    fn run_move_rejects_rearchiving_a_directory_style_archived_item() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let archived = dir
+            .path()
+            .join("4-Archive/Projects/website-redesign/index.md");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, "# Website Redesign\n").unwrap();
+        let mut ui = FakeUi {
+            confirm_response: String::new(),
+        };
+
+        let err = run_move(
+            &ws,
+            &mut ui,
+            "Projects/website-redesign",
+            Category::Archive,
+            true,
+        )
+        .unwrap_err();
+
+        assert!(err.to_string().contains("already archived"));
+        assert!(archived.is_file());
+    }
+
+    #[test]
     fn run_move_errors_when_no_item_matches_name() {
         let dir = tempdir().unwrap();
         let ws = workspace(dir.path());

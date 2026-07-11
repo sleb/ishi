@@ -20,6 +20,8 @@ pub enum ItemsError {
         from: &'static str,
         to: &'static str,
     },
+    #[error("\"{name}\" is already archived")]
+    AlreadyArchived { name: String },
 }
 
 /// Computes the path `create` would write to, without touching the
@@ -435,9 +437,13 @@ pub fn write_last_reviewed(item: &std::path::Path) -> Result<(), ItemsError> {
 /// Resolves `item_root`/`category` to the actual content file path — the
 /// same directory-vs-flat-file branch `item_path` uses, but against
 /// `item_root` (an already-located item) rather than computing a fresh path
-/// from `name`.
-fn content_path(item_root: &Path, category: Category) -> PathBuf {
-    if category.is_directory_style() {
+/// from `name`. Decided from `item_root`'s actual on-disk shape rather than
+/// `category.is_directory_style()`, mirroring `mv`'s `source_path.is_dir()`
+/// check: `category` can be `Archive`, whose `is_directory_style()` is
+/// unconditionally `false` even though an archived project's `item_root` is
+/// still a real directory on disk.
+fn content_path(item_root: &Path, _category: Category) -> PathBuf {
+    if item_root.is_dir() {
         item_root.join("index.md")
     } else {
         item_root.to_path_buf()
@@ -549,6 +555,29 @@ pub fn locate(ws: &Workspace, name: &str) -> Result<Option<(Category, PathBuf)>,
             }
         }
     }
+
+    if let Some((origin_name, basename)) = name.split_once('/')
+        && let Some(origin) = Category::archivable()
+            .into_iter()
+            .find(|c| c.archive_origin_name() == origin_name)
+    {
+        let dir = ws
+            .category_dir(Category::Archive)
+            .join(origin.archive_origin_name());
+        if origin.is_directory_style() {
+            let candidate = dir.join(basename);
+            if candidate.is_dir() {
+                return Ok(Some((Category::Archive, candidate)));
+            }
+        } else {
+            for (entry_name, path) in scan_dir(&dir, false, &ws.config.default_extension)? {
+                if entry_name == basename {
+                    return Ok(Some((Category::Archive, path)));
+                }
+            }
+        }
+    }
+
     Ok(None)
 }
 
@@ -583,7 +612,15 @@ pub fn mv(
     name: &str,
     target: Category,
 ) -> Result<PathBuf, ItemsError> {
-    if source.is_directory_style() && !target.is_directory_style() && target != Category::Archive {
+    if source == Category::Archive && target == Category::Archive {
+        return Err(ItemsError::AlreadyArchived {
+            name: name.to_string(),
+        });
+    }
+
+    let source_is_dir = source_path.is_dir();
+
+    if source_is_dir && !target.is_directory_style() && target != Category::Archive {
         return Err(ItemsError::UnwrapNotSupported {
             name: name.to_string(),
             from: source.display_name(),
@@ -591,28 +628,28 @@ pub fn mv(
         });
     }
 
-    let basename = |source_path: &std::path::Path| -> PathBuf {
-        if source.is_directory_style() {
-            PathBuf::from(name)
-        } else {
-            PathBuf::from(
-                source_path
-                    .file_name()
-                    .expect("located item has a file name"),
-            )
-        }
+    let basename = || -> PathBuf {
+        PathBuf::from(
+            source_path
+                .file_name()
+                .expect("located item has a file name"),
+        )
     };
 
-    let dest = if target.is_directory_style() && !source.is_directory_style() {
+    let dest = if target.is_directory_style() && !source_is_dir {
         ws.category_dir(target)
-            .join(name)
+            .join(
+                source_path
+                    .file_stem()
+                    .expect("located item has a file name"),
+            )
             .join(format!("index.{}", ws.config.default_extension))
     } else if target == Category::Archive {
         ws.category_dir(Category::Archive)
             .join(source.archive_origin_name())
-            .join(basename(source_path))
+            .join(basename())
     } else {
-        ws.category_dir(target).join(basename(source_path))
+        ws.category_dir(target).join(basename())
     };
 
     if let Some(parent) = dest.parent() {
@@ -1277,6 +1314,206 @@ mod tests {
         let result = locate(&ws, "my-item").unwrap();
 
         assert_eq!(result.unwrap().0, Category::Inbox);
+    }
+
+    #[test]
+    fn locate_bare_name_does_not_match_archived_item() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let project_index = dir
+            .path()
+            .join("4-Archive/Projects/website-redesign/index.md");
+        fs::create_dir_all(project_index.parent().unwrap()).unwrap();
+        fs::write(&project_index, "").unwrap();
+
+        let result = locate(&ws, "website-redesign").unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn locate_qualified_name_matches_directory_style_archived_item() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let project_index = dir
+            .path()
+            .join("4-Archive/Projects/website-redesign/index.md");
+        fs::create_dir_all(project_index.parent().unwrap()).unwrap();
+        fs::write(&project_index, "").unwrap();
+
+        let result = locate(&ws, "Projects/website-redesign").unwrap();
+
+        assert_eq!(
+            result,
+            Some((
+                Category::Archive,
+                dir.path().join("4-Archive/Projects/website-redesign")
+            ))
+        );
+    }
+
+    #[test]
+    fn locate_qualified_name_matches_flat_archived_item() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let resource_path = dir.path().join("4-Archive/Resources/my-file.md");
+        fs::create_dir_all(resource_path.parent().unwrap()).unwrap();
+        fs::write(&resource_path, "hello").unwrap();
+
+        let result = locate(&ws, "Resources/my-file").unwrap();
+
+        assert_eq!(result, Some((Category::Archive, resource_path)));
+    }
+
+    #[test]
+    fn locate_qualified_name_with_unknown_origin_component_does_not_match() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let result = locate(&ws, "Bogus/whatever").unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn mv_unarchives_directory_to_matching_shape_category_relocates_as_is() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let archived = dir
+            .path()
+            .join("4-Archive/Projects/website-redesign/index.md");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, "# Website Redesign\n").unwrap();
+        let source_dir = archived.parent().unwrap().to_path_buf();
+
+        let dest = mv(
+            &ws,
+            Category::Archive,
+            &source_dir,
+            "website-redesign",
+            Category::Project,
+        )
+        .unwrap();
+
+        assert_eq!(dest, dir.path().join("1-Projects/website-redesign"));
+        assert_eq!(
+            fs::read_to_string(dest.join("index.md")).unwrap(),
+            "# Website Redesign\n"
+        );
+    }
+
+    #[test]
+    fn mv_unarchives_directory_to_different_directory_style_category_relocates_as_is() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let archived = dir
+            .path()
+            .join("4-Archive/Projects/website-redesign/index.md");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, "# Website Redesign\n").unwrap();
+        let source_dir = archived.parent().unwrap().to_path_buf();
+
+        let dest = mv(
+            &ws,
+            Category::Archive,
+            &source_dir,
+            "website-redesign",
+            Category::Area,
+        )
+        .unwrap();
+
+        assert_eq!(dest, dir.path().join("2-Areas/website-redesign"));
+        assert_eq!(
+            fs::read_to_string(dest.join("index.md")).unwrap(),
+            "# Website Redesign\n"
+        );
+    }
+
+    #[test]
+    fn mv_unarchives_flat_file_to_flat_category_relocates_as_is() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let archived = dir.path().join("4-Archive/Resources/my-file.md");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, "hello").unwrap();
+
+        let dest = mv(
+            &ws,
+            Category::Archive,
+            &archived,
+            "my-file",
+            Category::Inbox,
+        )
+        .unwrap();
+
+        assert_eq!(dest, dir.path().join("0-Inbox/my-file.md"));
+        assert_eq!(fs::read_to_string(&dest).unwrap(), "hello");
+    }
+
+    #[test]
+    fn mv_unarchives_flat_file_to_directory_style_category_wraps_it() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let archived = dir.path().join("4-Archive/Inbox/my-note.md");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, "some content").unwrap();
+
+        let dest = mv(
+            &ws,
+            Category::Archive,
+            &archived,
+            "my-note",
+            Category::Project,
+        )
+        .unwrap();
+
+        assert_eq!(dest, dir.path().join("1-Projects/my-note/index.md"));
+        assert_eq!(fs::read_to_string(&dest).unwrap(), "some content");
+    }
+
+    #[test]
+    fn mv_unarchiving_directory_to_flat_category_is_rejected() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let archived = dir
+            .path()
+            .join("4-Archive/Projects/website-redesign/index.md");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, "").unwrap();
+        let source_dir = archived.parent().unwrap().to_path_buf();
+
+        let err = mv(
+            &ws,
+            Category::Archive,
+            &source_dir,
+            "website-redesign",
+            Category::Inbox,
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, ItemsError::UnwrapNotSupported { .. }));
+        assert!(source_dir.is_dir());
+    }
+
+    #[test]
+    fn mv_rearchiving_an_already_archived_item_is_rejected_not_a_panic() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let archived = dir.path().join("4-Archive/Resources/my-file.md");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, "hello").unwrap();
+
+        let err = mv(
+            &ws,
+            Category::Archive,
+            &archived,
+            "my-file",
+            Category::Archive,
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, ItemsError::AlreadyArchived { .. }));
+        assert!(archived.is_file());
     }
 
     #[test]

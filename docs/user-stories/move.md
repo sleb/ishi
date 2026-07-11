@@ -180,7 +180,7 @@ See [init.md](init.md) Stories 005-006.)
 ## User Story 005
 
 - **Summary:** Un-archiving — moving an item back out of `Archive` into a live category, keyed off the target category rather than the origin subfolder
-- **Status:** Not started
+- **Status:** ✅
 - **Depends on:** Story 001 (the move semantics this extends), [list.md](list.md) (the `<OriginCategory>/<name>` composite form used to name archived items)
 
 ### Use Case
