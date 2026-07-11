@@ -157,7 +157,11 @@ pub fn run_daily(ws: &Workspace, editor: &dyn Editor) -> anyhow::Result<DailyOut
     }
 }
 
-pub fn run_init(cwd: &Path, name: Option<&str>) -> anyhow::Result<String> {
+pub fn run_init(
+    cwd: &Path,
+    name: Option<&str>,
+    home_config: Option<&Path>,
+) -> anyhow::Result<String> {
     let (target, display) = match name {
         Some(n) => (cwd.join(n), format!("./{n}")),
         None => (cwd.to_path_buf(), ".".to_string()),
@@ -165,11 +169,35 @@ pub fn run_init(cwd: &Path, name: Option<&str>) -> anyhow::Result<String> {
 
     let report = workspace::init(&target)?;
 
-    Ok(match report.created.len() {
+    let mut lines = vec![match report.created.len() {
         5 => format!("Created PARA system in {display}"),
         0 => format!("PARA system in {display} is already complete; no changes made"),
         _ => format!("Created {} in {display}", report.created.join(", ")),
-    })
+    }];
+
+    let (config, _origins) = config::Config::resolve(&target.join(".tick.toml"), home_config)?;
+    let archive_dir = &config.category_dirs[Category::Archive as usize];
+
+    let editor_report = workspace::write_editor_excludes(&target, archive_dir)?;
+    if !editor_report.zed_created {
+        lines.push(format!(
+            "Manually add \"{archive_dir}\" to .zed/settings.json's file_scan_exclude."
+        ));
+    }
+    if !editor_report.vscode_created {
+        lines.push(format!(
+            "Manually add \"{archive_dir}\" to .vscode/settings.json's files.exclude/search.exclude."
+        ));
+    }
+
+    let claude_md_report = workspace::write_claude_md(&target, archive_dir)?;
+    if !claude_md_report.created {
+        lines.push(format!(
+            "Manually add an instruction to CLAUDE.md not to read files under \"{archive_dir}\" unless asked."
+        ));
+    }
+
+    Ok(lines.join("\n"))
 }
 
 /// Writes the default config to `path` and returns the exact confirmation
@@ -962,7 +990,7 @@ mod tests {
     fn run_init_bare_full_create() {
         let dir = tempdir().unwrap();
 
-        let message = run_init(dir.path(), None).unwrap();
+        let message = run_init(dir.path(), None, None).unwrap();
 
         assert_eq!(message, "Created PARA system in .");
     }
@@ -971,7 +999,7 @@ mod tests {
     fn run_init_named_full_create() {
         let dir = tempdir().unwrap();
 
-        let message = run_init(dir.path(), Some("my-para")).unwrap();
+        let message = run_init(dir.path(), Some("my-para"), None).unwrap();
 
         assert_eq!(message, "Created PARA system in ./my-para");
         for name in Config::default().category_dirs {
@@ -986,7 +1014,7 @@ mod tests {
             fs::create_dir_all(dir.path().join(name)).unwrap();
         }
 
-        let message = run_init(dir.path(), None).unwrap();
+        let message = run_init(dir.path(), None, None).unwrap();
 
         assert_eq!(
             message,
@@ -999,7 +1027,7 @@ mod tests {
         let dir = tempdir().unwrap();
         fs::create_dir_all(dir.path().join("0-Inbox")).unwrap();
 
-        let message = run_init(dir.path(), None).unwrap();
+        let message = run_init(dir.path(), None, None).unwrap();
 
         assert_eq!(
             message,
@@ -1012,7 +1040,7 @@ mod tests {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("README.md"), "hello").unwrap();
 
-        let message = run_init(dir.path(), None).unwrap();
+        let message = run_init(dir.path(), None, None).unwrap();
 
         assert_eq!(message, "Created PARA system in .");
         assert_eq!(
@@ -1026,10 +1054,88 @@ mod tests {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("existing-file"), "").unwrap();
 
-        let err = run_init(dir.path(), Some("existing-file")).unwrap_err();
+        let err = run_init(dir.path(), Some("existing-file"), None).unwrap_err();
 
         assert!(err.to_string().contains("existing-file"));
         assert!(err.to_string().contains("already exists"));
+    }
+
+    #[test]
+    fn run_init_creates_editor_excludes_and_claude_md_on_fresh_target() {
+        let dir = tempdir().unwrap();
+
+        let message = run_init(dir.path(), None, None).unwrap();
+
+        assert!(dir.path().join(".zed/settings.json").exists());
+        assert!(dir.path().join(".vscode/settings.json").exists());
+        assert!(dir.path().join("CLAUDE.md").exists());
+        assert_eq!(message, "Created PARA system in .");
+    }
+
+    #[test]
+    fn run_init_prints_instructions_when_zed_settings_pre_exist() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".zed")).unwrap();
+        fs::write(dir.path().join(".zed/settings.json"), "arbitrary").unwrap();
+
+        let message = run_init(dir.path(), None, None).unwrap();
+
+        assert!(message.contains(".zed/settings.json"));
+        assert!(message.contains("4-Archive"));
+    }
+
+    #[test]
+    fn run_init_prints_instructions_when_vscode_settings_pre_exist() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".vscode")).unwrap();
+        fs::write(dir.path().join(".vscode/settings.json"), "arbitrary").unwrap();
+
+        let message = run_init(dir.path(), None, None).unwrap();
+
+        assert!(message.contains(".vscode/settings.json"));
+        assert!(message.contains("4-Archive"));
+    }
+
+    #[test]
+    fn run_init_prints_instructions_when_claude_md_pre_exists() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("CLAUDE.md"), "arbitrary").unwrap();
+
+        let message = run_init(dir.path(), None, None).unwrap();
+
+        assert!(message.contains("CLAUDE.md"));
+        assert!(message.contains("4-Archive"));
+    }
+
+    #[test]
+    fn run_init_uses_targets_existing_custom_archive_name() {
+        let dir = tempdir().unwrap();
+        fs::write(
+            dir.path().join(".tick.toml"),
+            "[folders]\narchive = \"9-Attic\"\n",
+        )
+        .unwrap();
+
+        run_init(dir.path(), None, None).unwrap();
+
+        let zed = fs::read_to_string(dir.path().join(".zed/settings.json")).unwrap();
+        assert!(zed.contains("9-Attic"));
+        assert!(!zed.contains("4-Archive"));
+        let claude_md = fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap();
+        assert!(claude_md.contains("9-Attic"));
+    }
+
+    #[test]
+    fn run_init_rerun_keeps_printing_instructions() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".zed")).unwrap();
+        fs::write(dir.path().join(".zed/settings.json"), "arbitrary").unwrap();
+
+        let first = run_init(dir.path(), None, None).unwrap();
+        let second = run_init(dir.path(), None, None).unwrap();
+
+        assert!(first.contains(".zed/settings.json"));
+        assert!(second.contains(".zed/settings.json"));
     }
 
     #[test]

@@ -214,6 +214,20 @@ Answers "where do things live?" for every other component.
   dirs are missing under it. No `.tick.toml` is written; the created dirs
   are discoverable later via `Workspace::discover`'s bare-category-dirs
   fallback.
+- `struct EditorExcludeReport { zed_created: bool, vscode_created: bool }`,
+  `struct ClaudeMdReport { created: bool }` — report which of the
+  create-only writes below actually happened.
+- `write_editor_excludes(target: &Path, archive_dir: &str) -> Result<EditorExcludeReport>`
+  — writes `.zed/settings.json` and/or `.vscode/settings.json` under
+  `target`, each independently, only if it doesn't already exist; both name
+  `archive_dir` in their exclude entries. Mirrors `init`'s and
+  `config::init`'s create-only contract: an existing file (any contents) is
+  never touched.
+- `write_claude_md(target: &Path, archive_dir: &str) -> Result<ClaudeMdReport>`
+  — writes `CLAUDE.md` at `target` with a one-sentence archive-skip
+  instruction naming `archive_dir`, only if `CLAUDE.md` doesn't already
+  exist. Same create-only contract; no parsing/merging of an existing
+  file's contents.
 
 ### `gist`
 
@@ -419,12 +433,23 @@ The only component that touches argv, stdin, and stdout. A `clap`-derived
   `items::create(ws, Category::Inbox, today, &rendered)`, and returns
   `Created`. No `Ui` parameter — there's no filename to confirm and no
   choice to prompt, just a create/reopen fork.
-- `run_init(cwd: &Path, name: Option<&str>) -> Result<String>` — resolves
-  the target (`cwd` or `cwd.join(name)`) and its display form (`.` or
-  `./<name>`), calls `workspace::init` (which runs `check_collision`
-  internally for both forms), and renders the outcome (full create /
-  partial fill-in / already-complete) into the exact message `main`
-  prints.
+- `run_init(cwd: &Path, name: Option<&str>, home_config: Option<&Path>) ->
+  Result<String>` — resolves the target (`cwd` or `cwd.join(name)`) and its
+  display form (`.` or `./<name>`), calls `workspace::init` (which runs
+  `check_collision` internally for both forms), and renders the outcome
+  (full create / partial fill-in / already-complete) into the message's
+  first line. Then resolves `Config::resolve(&target.join(".tick.toml"),
+  home_config)` to read the archive folder name (the same resolution
+  `Workspace::discover` does — `workspace::init` never writes
+  `.tick.toml`, so this reads whatever's already at the target, or the
+  built-in default), and calls `workspace::write_editor_excludes`/
+  `write_claude_md` with it (init.md Stories 005/006). Each report that
+  comes back `false` (file already existed) appends a manual-update
+  instruction line naming the file and the archive folder; successful
+  creation adds no line. All lines join with `\n` into the returned
+  string. `home_config` mirrors the parameter `Workspace::discover`
+  already takes; `main` threads its already-computed `home_config` through
+  here as a call-site change, not new logic.
 - `run_config_init(path: &Path, display: &str) -> Result<String>` — calls
   `config::init(path)` and, on success, returns `"Created {display}"`;
   `display` is the caller-computed human-readable form (`"./.tick.toml"` or
@@ -473,15 +498,6 @@ wrapper, since `resolve` already returns a `thiserror` error and
   summary stamp for free rather than duplicating it; it takes no category
   argument, so `tk archive <item> archive` is a clap parse error rather
   than something `run_move` has to reject.
-- `run_init` (see above) is also where init.md Stories 005 (editor
-  quick-open excludes for the configured archive folder) and 006
-  (`CLAUDE.md` archive instruction) will trigger, not `run_move` — both
-  are still not started, and create their file only if it doesn't already
-  exist; if it does, `run_init` prints instructions for the user to
-  update it manually instead of merging into unknown-shape content.
-  Module ownership for those writers isn't decided yet — not sketched
-  here — since neither existed before these stories were written; needs
-  an LLD pass before implementation.
 
 ## Notes
 

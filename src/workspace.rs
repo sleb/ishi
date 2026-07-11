@@ -83,6 +83,83 @@ pub fn init(target: &Path) -> Result<InitReport, WorkspaceError> {
     Ok(InitReport { created })
 }
 
+pub struct EditorExcludeReport {
+    pub zed_created: bool,
+    pub vscode_created: bool,
+}
+
+pub struct ClaudeMdReport {
+    pub created: bool,
+}
+
+fn zed_settings_json(archive_dir: &str) -> String {
+    format!("{{\n  \"file_scan_exclude\": [\"{archive_dir}\"]\n}}\n")
+}
+
+fn vscode_settings_json(archive_dir: &str) -> String {
+    format!(
+        "{{\n  \"files.exclude\": {{\n    \"{archive_dir}\": true\n  }},\n  \"search.exclude\": {{\n    \"{archive_dir}\": true\n  }}\n}}\n"
+    )
+}
+
+fn claude_md_content(archive_dir: &str) -> String {
+    format!(
+        "# CLAUDE.md\n\nDo not read files under `{archive_dir}` unless the user explicitly asks or there's a strong, specific reason to.\n"
+    )
+}
+
+/// Writes `.zed/settings.json` and/or `.vscode/settings.json` under
+/// `target`, each independently, only if it doesn't already exist. Both
+/// name `archive_dir` in their exclude entries. Never touches a file that
+/// already exists (even one with unrelated contents) — creation is the
+/// only mutation this ever performs, matching `config::init`'s
+/// create-only contract.
+pub fn write_editor_excludes(
+    target: &Path,
+    archive_dir: &str,
+) -> Result<EditorExcludeReport, WorkspaceError> {
+    let zed_path = target.join(".zed").join("settings.json");
+    let zed_created = if zed_path.exists() {
+        false
+    } else {
+        fs::create_dir_all(zed_path.parent().unwrap())?;
+        fs::write(&zed_path, zed_settings_json(archive_dir))?;
+        true
+    };
+
+    let vscode_path = target.join(".vscode").join("settings.json");
+    let vscode_created = if vscode_path.exists() {
+        false
+    } else {
+        fs::create_dir_all(vscode_path.parent().unwrap())?;
+        fs::write(&vscode_path, vscode_settings_json(archive_dir))?;
+        true
+    };
+
+    Ok(EditorExcludeReport {
+        zed_created,
+        vscode_created,
+    })
+}
+
+/// Writes `CLAUDE.md` at `target` with an archive-skip instruction naming
+/// `archive_dir`, only if `CLAUDE.md` doesn't already exist. Never
+/// modifies an existing `CLAUDE.md`, with or without the instruction
+/// already present — parsing/merging unknown-shape Markdown is explicitly
+/// out of scope per `init.md` 006.
+pub fn write_claude_md(target: &Path, archive_dir: &str) -> Result<ClaudeMdReport, WorkspaceError> {
+    let path = target.join("CLAUDE.md");
+    let created = if path.exists() {
+        false
+    } else {
+        fs::create_dir_all(target)?;
+        fs::write(&path, claude_md_content(archive_dir))?;
+        true
+    };
+
+    Ok(ClaudeMdReport { created })
+}
+
 impl Workspace {
     /// Walks up from `start` through ancestors, stopping at the first
     /// directory containing `.tick.toml` or all five default-named
@@ -339,5 +416,121 @@ mod tests {
         let dir = tempdir().unwrap();
 
         assert!(check_collision(dir.path()).is_ok());
+    }
+
+    #[test]
+    fn write_editor_excludes_creates_zed_settings_when_absent() {
+        let dir = tempdir().unwrap();
+
+        let report = write_editor_excludes(dir.path(), "4-Archive").unwrap();
+
+        assert!(report.zed_created);
+        let content = fs::read_to_string(dir.path().join(".zed/settings.json")).unwrap();
+        assert!(content.contains("file_scan_exclude"));
+        assert!(content.contains("4-Archive"));
+    }
+
+    #[test]
+    fn write_editor_excludes_creates_vscode_settings_when_absent() {
+        let dir = tempdir().unwrap();
+
+        let report = write_editor_excludes(dir.path(), "4-Archive").unwrap();
+
+        assert!(report.vscode_created);
+        let content = fs::read_to_string(dir.path().join(".vscode/settings.json")).unwrap();
+        assert!(content.contains("files.exclude"));
+        assert!(content.contains("search.exclude"));
+        assert!(content.contains("4-Archive"));
+    }
+
+    #[test]
+    fn write_editor_excludes_leaves_existing_zed_settings_untouched() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".zed")).unwrap();
+        fs::write(dir.path().join(".zed/settings.json"), "arbitrary").unwrap();
+
+        let report = write_editor_excludes(dir.path(), "4-Archive").unwrap();
+
+        assert!(!report.zed_created);
+        assert_eq!(
+            fs::read_to_string(dir.path().join(".zed/settings.json")).unwrap(),
+            "arbitrary"
+        );
+    }
+
+    #[test]
+    fn write_editor_excludes_leaves_existing_vscode_settings_untouched() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".vscode")).unwrap();
+        fs::write(dir.path().join(".vscode/settings.json"), "arbitrary").unwrap();
+
+        let report = write_editor_excludes(dir.path(), "4-Archive").unwrap();
+
+        assert!(!report.vscode_created);
+        assert_eq!(
+            fs::read_to_string(dir.path().join(".vscode/settings.json")).unwrap(),
+            "arbitrary"
+        );
+    }
+
+    #[test]
+    fn write_editor_excludes_uses_custom_archive_dir_name() {
+        let dir = tempdir().unwrap();
+
+        write_editor_excludes(dir.path(), "9-Attic").unwrap();
+
+        let zed = fs::read_to_string(dir.path().join(".zed/settings.json")).unwrap();
+        let vscode = fs::read_to_string(dir.path().join(".vscode/settings.json")).unwrap();
+        assert!(zed.contains("9-Attic"));
+        assert!(vscode.contains("9-Attic"));
+    }
+
+    #[test]
+    fn write_editor_excludes_zed_and_vscode_are_independent() {
+        let dir = tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".zed")).unwrap();
+        fs::write(dir.path().join(".zed/settings.json"), "arbitrary").unwrap();
+
+        let report = write_editor_excludes(dir.path(), "4-Archive").unwrap();
+
+        assert!(!report.zed_created);
+        assert!(report.vscode_created);
+        assert!(dir.path().join(".vscode/settings.json").exists());
+    }
+
+    #[test]
+    fn write_claude_md_creates_when_absent() {
+        let dir = tempdir().unwrap();
+
+        let report = write_claude_md(dir.path(), "4-Archive").unwrap();
+
+        assert!(report.created);
+        let content = fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap();
+        assert!(content.contains("4-Archive"));
+        assert!(content.contains("unless"));
+    }
+
+    #[test]
+    fn write_claude_md_leaves_existing_file_untouched() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("CLAUDE.md"), "arbitrary").unwrap();
+
+        let report = write_claude_md(dir.path(), "4-Archive").unwrap();
+
+        assert!(!report.created);
+        assert_eq!(
+            fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap(),
+            "arbitrary"
+        );
+    }
+
+    #[test]
+    fn write_claude_md_uses_custom_archive_dir_name() {
+        let dir = tempdir().unwrap();
+
+        write_claude_md(dir.path(), "9-Attic").unwrap();
+
+        let content = fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap();
+        assert!(content.contains("9-Attic"));
     }
 }

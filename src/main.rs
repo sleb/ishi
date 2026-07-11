@@ -246,7 +246,7 @@ fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Init { name } => {
-            let message = cli::run_init(&cwd, name.as_deref())?;
+            let message = cli::run_init(&cwd, name.as_deref(), home_config.as_deref())?;
             println!("{message}");
             match name.as_deref() {
                 Some(n) => println!("Next: cd {n} && tk new to capture your first note."),

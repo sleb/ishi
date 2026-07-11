@@ -103,7 +103,7 @@
 ## User Story 005
 
 - **Summary:** Initializing a PARA system sets up editor exclude config for the archive folder, for both VS Code and Zed
-- **Status:** Not started
+- **Status:** ✅ Completed
 - **Depends on:** Story 001, Story 002 (creates settings alongside whichever target init scaffolds)
 
 ### Use Case
@@ -151,7 +151,7 @@
 ## User Story 006
 
 - **Summary:** Initializing a PARA system creates a `CLAUDE.md` instructing agents to leave the archive alone unless asked
-- **Status:** Not started
+- **Status:** ✅ Completed
 - **Depends on:** Story 001, Story 002 (creates the file alongside whichever target init scaffolds)
 
 ### Use Case
