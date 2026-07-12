@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-07-12
+
+### Added
+
+- `--json` flag for `ishi list`, `ishi status`, and `ishi config` to print machine-readable output instead of tables/text.
+- `ishi review <name> [--keep|--archive|--skip]` to apply a review decision to a single named project or area, either directly via flag or interactively, without walking the full review list.
+- Stable, documented exit codes (`2` item not found, `3` invalid state for the operation, `4` invalid config) so scripts and agents can distinguish failure categories without parsing error text.
+
 ## [0.1.0] - 2026-07-11
 
 ### Added
@@ -22,4 +30,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Template placeholders `{{date}}`, `{{time}}`, `{{title}}`, `{{cursor}}`, and `{{uuid}}` for customizing note templates.
 - JSON Schema generation for `.ishi.toml` to enable editor autocomplete and validation via Taplo-based tooling.
 
+[0.2.0]: https://github.com/sleb/ishi/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sleb/ishi/releases/tag/v0.1.0
