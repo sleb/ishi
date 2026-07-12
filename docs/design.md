@@ -289,6 +289,22 @@ argv-to-call-to-print shim and everything else is unit-testable. Notably:
   whenever that basename occurs in more than one live category — never
   offering a bare name `ishi move` would now reject as ambiguous (move.md
   006).
+- `cli::CliError` (`ItemNotFound`, `NotArchived`) — the typed "not
+  found"/"not archived" cases `run_move`/`run_unarchive` raise instead of ad
+  hoc `anyhow::anyhow!` strings, so `main` can distinguish them by type and
+  map each to a dedicated exit code (README's "Exit codes" section,
+  `docs/lld/019-exit-codes.md`). The `Display` text is unchanged from the
+  strings it replaces.
+
+`main` maps a failure returned from `dispatch` to one of four dedicated
+exit codes (`main::exit_code_for`) by downcasting `anyhow::Error` to the
+concrete type each fallible call site actually raised: `cli::CliError`,
+`items::ItemsError::{AlreadyArchived,UnwrapNotSupported}`, and
+`config::ConfigError::{Parse,Read}` — the last both bare (from `ishi
+config`) and wrapped in `workspace::WorkspaceError::Config` (from every
+workspace-backed command), since `downcast_ref` sees through `.context(...)`
+layers but not through a `thiserror` `#[from]`/`source()` chain. Every other
+failure keeps exit code 1, unchanged.
 
 ## Appendix: notable invariants
 

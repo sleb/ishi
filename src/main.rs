@@ -340,12 +340,29 @@ fn run_daily_command(ws: &Workspace) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
-    clap_complete::CompleteEnv::with_factory(Cli::command).complete();
+const EXIT_NOT_FOUND: u8 = 2;
+const EXIT_INVALID_STATE: u8 = 3;
+const EXIT_INVALID_CONFIG: u8 = 4;
 
+fn main() -> std::process::ExitCode {
+    clap_complete::CompleteEnv::with_factory(Cli::command).complete();
     env_logger::init();
     let cli = Cli::parse();
 
+    match dispatch(cli) {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(err) => {
+            eprintln!("Error: {err:?}");
+            exit_code_for(&err)
+        }
+    }
+}
+
+/// The former body of `main`: resolves `cwd`/`home_config` and dispatches
+/// on `cli.command`. Factored out so `main` can intercept the `Result` and
+/// choose an exit code before the process ends, instead of relying on
+/// `Result<(), E>`'s default `Termination` impl (always exit 1).
+fn dispatch(cli: Cli) -> anyhow::Result<()> {
     let cwd = env::current_dir().context("failed to determine current directory")?;
     let home_config = home_ishi_toml();
 
@@ -498,10 +515,183 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Categorizes a failure into a dedicated exit code by downcasting through
+/// `anyhow`'s `.context()` layers to the concrete error type each fallible
+/// call site actually raised. `downcast_ref` sees through `.context(...)`
+/// wrapping but not through a `thiserror` `#[from]`/`source()` chain — the
+/// reason config errors need two match arms, one per depth they can arrive
+/// at `main` from: a bare `ConfigError` (from `ishi config`) and
+/// `WorkspaceError::Config(ConfigError)` (from every workspace-backed
+/// command).
+fn exit_code_for(err: &anyhow::Error) -> std::process::ExitCode {
+    use std::process::ExitCode;
+
+    if err
+        .downcast_ref::<ishi::cli::CliError>()
+        .is_some_and(|e| matches!(e, ishi::cli::CliError::ItemNotFound { .. }))
+    {
+        return ExitCode::from(EXIT_NOT_FOUND);
+    }
+    if err
+        .downcast_ref::<ishi::cli::CliError>()
+        .is_some_and(|e| matches!(e, ishi::cli::CliError::NotArchived { .. }))
+        || err
+            .downcast_ref::<ishi::items::ItemsError>()
+            .is_some_and(|e| {
+                matches!(
+                    e,
+                    ishi::items::ItemsError::AlreadyArchived { .. }
+                        | ishi::items::ItemsError::UnwrapNotSupported { .. }
+                )
+            })
+    {
+        return ExitCode::from(EXIT_INVALID_STATE);
+    }
+    if err
+        .downcast_ref::<ishi::config::ConfigError>()
+        .is_some_and(is_invalid_config)
+        || err
+            .downcast_ref::<ishi::workspace::WorkspaceError>()
+            .is_some_and(
+                |e| matches!(e, ishi::workspace::WorkspaceError::Config(c) if is_invalid_config(c)),
+            )
+    {
+        return ExitCode::from(EXIT_INVALID_CONFIG);
+    }
+    ExitCode::FAILURE
+}
+
+fn is_invalid_config(e: &ishi::config::ConfigError) -> bool {
+    matches!(
+        e,
+        ishi::config::ConfigError::Parse { .. } | ishi::config::ConfigError::Read { .. }
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn item_not_found_classifies_as_exit_code_2() {
+        let err: anyhow::Error = ishi::cli::CliError::ItemNotFound {
+            name: "x".to_string(),
+        }
+        .into();
+
+        assert_eq!(
+            format!("{:?}", exit_code_for(&err)),
+            format!("{:?}", std::process::ExitCode::from(2))
+        );
+    }
+
+    #[test]
+    fn not_archived_classifies_as_exit_code_3() {
+        let err: anyhow::Error = ishi::cli::CliError::NotArchived {
+            name: "x".to_string(),
+        }
+        .into();
+
+        assert_eq!(
+            format!("{:?}", exit_code_for(&err)),
+            format!("{:?}", std::process::ExitCode::from(3))
+        );
+    }
+
+    #[test]
+    fn already_archived_classifies_as_exit_code_3() {
+        let err: anyhow::Error = ishi::items::ItemsError::AlreadyArchived {
+            name: "x".to_string(),
+        }
+        .into();
+
+        assert_eq!(
+            format!("{:?}", exit_code_for(&err)),
+            format!("{:?}", std::process::ExitCode::from(3))
+        );
+    }
+
+    #[test]
+    fn unwrap_not_supported_classifies_as_exit_code_3() {
+        let err: anyhow::Error = ishi::items::ItemsError::UnwrapNotSupported {
+            name: "x".to_string(),
+            from: "Archive",
+            to: "Resource",
+        }
+        .into();
+
+        assert_eq!(
+            format!("{:?}", exit_code_for(&err)),
+            format!("{:?}", std::process::ExitCode::from(3))
+        );
+    }
+
+    #[test]
+    fn config_parse_error_classifies_as_exit_code_4() {
+        let toml_err = toml::from_str::<toml::Value>("not valid toml [[[").unwrap_err();
+        let err: anyhow::Error = ishi::config::ConfigError::Parse {
+            path: "/tmp/.ishi.toml".to_string(),
+            source: toml_err,
+        }
+        .into();
+
+        assert_eq!(
+            format!("{:?}", exit_code_for(&err)),
+            format!("{:?}", std::process::ExitCode::from(4))
+        );
+    }
+
+    #[test]
+    fn config_parse_error_wrapped_in_workspace_config_and_context_classifies_as_exit_code_4() {
+        let toml_err = toml::from_str::<toml::Value>("not valid toml [[[").unwrap_err();
+        let config_err = ishi::config::ConfigError::Parse {
+            path: "/tmp/.ishi.toml".to_string(),
+            source: toml_err,
+        };
+        let result: Result<(), ishi::workspace::WorkspaceError> =
+            Err(ishi::workspace::WorkspaceError::from(config_err));
+        let err: anyhow::Error = result
+            .context("failed to find a PARA workspace")
+            .unwrap_err();
+
+        assert_eq!(
+            format!("{:?}", exit_code_for(&err)),
+            format!("{:?}", std::process::ExitCode::from(4))
+        );
+    }
+
+    #[test]
+    fn uncategorized_failures_fall_back_to_generic_exit_code() {
+        let already_exists: anyhow::Error = ishi::config::ConfigError::AlreadyExists {
+            path: "/tmp/.ishi.toml".to_string(),
+        }
+        .into();
+        let write_failed: anyhow::Error = ishi::config::ConfigError::Write {
+            path: "/tmp/.ishi.toml".to_string(),
+            source: io::Error::other("nope"),
+        }
+        .into();
+        let workspace_not_found: anyhow::Error = ishi::workspace::WorkspaceError::NotFound {
+            start: "/tmp".to_string(),
+            missing: "no 0-Inbox directory found".to_string(),
+        }
+        .into();
+        let not_reviewable: anyhow::Error = ishi::review::ReviewError::NotReviewable {
+            name: "x".to_string(),
+        }
+        .into();
+
+        let generic = format!("{:?}", std::process::ExitCode::from(1));
+        for err in [
+            already_exists,
+            write_failed,
+            workspace_not_found,
+            not_reviewable,
+        ] {
+            assert_eq!(format!("{:?}", exit_code_for(&err)), generic);
+        }
+    }
 
     #[test]
     fn parses_new_with_filename() {

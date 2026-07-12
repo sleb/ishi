@@ -19,6 +19,18 @@ pub enum UiError {
     Io(#[from] io::Error),
 }
 
+/// Typed "no match"/"not archived" failures `run_move`/`run_unarchive` raise
+/// instead of ad hoc `anyhow::anyhow!` strings, so `main` can distinguish
+/// them by type and map each to a dedicated exit code
+/// (`docs/lld/019-exit-codes.md`).
+#[derive(Debug, Error)]
+pub enum CliError {
+    #[error("No item named \"{name}\" found")]
+    ItemNotFound { name: String },
+    #[error("\"{name}\" is not archived")]
+    NotArchived { name: String },
+}
+
 pub trait Ui {
     fn confirm(&mut self, prompt: &str, default: &str) -> Result<String, UiError>;
 
@@ -501,8 +513,9 @@ pub fn run_move(
     target: Category,
     assume_yes: bool,
 ) -> anyhow::Result<String> {
-    let (source, source_path) = items::locate(ws, name)?
-        .ok_or_else(|| anyhow::anyhow!("No item named \"{name}\" found"))?;
+    let (source, source_path) = items::locate(ws, name)?.ok_or_else(|| CliError::ItemNotFound {
+        name: name.to_string(),
+    })?;
 
     if target == Category::Archive {
         let default = items::summary_default(&source_path, source, name)?;
@@ -530,11 +543,15 @@ pub fn run_move(
 /// resolve to an `Archive` item — a bare name matching a live item, or no
 /// match at all, is never something to "un-archive".
 pub fn run_unarchive(ws: &Workspace, name: &str) -> anyhow::Result<String> {
-    let (source, source_path) = items::locate(ws, name)?
-        .ok_or_else(|| anyhow::anyhow!("No item named \"{name}\" found"))?;
+    let (source, source_path) = items::locate(ws, name)?.ok_or_else(|| CliError::ItemNotFound {
+        name: name.to_string(),
+    })?;
 
     if source != Category::Archive {
-        anyhow::bail!("\"{name}\" is not archived");
+        return Err(CliError::NotArchived {
+            name: name.to_string(),
+        }
+        .into());
     }
 
     let origin_name = name
@@ -2169,6 +2186,10 @@ mod tests {
         let err = run_move(&ws, &mut ui, "nonexistent", Category::Project, false).unwrap_err();
 
         assert!(err.to_string().contains("nonexistent"));
+        assert!(matches!(
+            err.downcast_ref::<CliError>(),
+            Some(CliError::ItemNotFound { .. })
+        ));
     }
 
     #[test]
@@ -2342,6 +2363,10 @@ mod tests {
         let err = run_unarchive(&ws, "my-file").unwrap_err();
 
         assert!(err.to_string().contains("not archived"));
+        assert!(matches!(
+            err.downcast_ref::<CliError>(),
+            Some(CliError::NotArchived { .. })
+        ));
         assert!(dir.path().join("0-Inbox/my-file.md").is_file());
     }
 
@@ -2353,6 +2378,10 @@ mod tests {
         let err = run_unarchive(&ws, "Projects/nonexistent").unwrap_err();
 
         assert!(err.to_string().contains("nonexistent"));
+        assert!(matches!(
+            err.downcast_ref::<CliError>(),
+            Some(CliError::ItemNotFound { .. })
+        ));
     }
 
     #[test]

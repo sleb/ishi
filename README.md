@@ -327,6 +327,18 @@ Prints a small registration snippet to stdout — shell glue that calls back int
 $ ishi completions zsh > ~/.zsh/completions/_ishi
 ```
 
+## Exit codes
+
+| Code | Meaning | Example |
+| --- | --- | --- |
+| 0 | Success | `ishi list project` finds matches |
+| 1 | Generic failure (uncategorized) | Anything not covered by a more specific code below |
+| 2 | Item not found | `ishi move nonexistent-item area` |
+| 3 | Operation invalid for the item's current state | `ishi archive already-archived-item`, `ishi unarchive not-archived-item`, moving a directory-style item into a flat-file category |
+| 4 | Invalid config | A malformed `.ishi.toml` on any command that reads config |
+
+These codes are part of each command's contract and are stable across releases — scripts and agents can rely on them to distinguish failure categories without parsing `Error: ...` text.
+
 ## Configuration
 
 Ishi reads an optional `.ishi.toml` from the root of your PARA system, and another from `~/.ishi.toml` for personal defaults that apply across every system. It lets you rename the numbered folders, change the default file extension, and customize the templates used for new notes instead of relying on the built-in defaults.

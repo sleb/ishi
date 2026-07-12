@@ -91,7 +91,7 @@ no separate "what's pending" step is needed here.)*
 
 ### Activity 4: Recover from failure
 
-**Step 4.1 — Tell failure kinds apart from the exit code alone**
+**Step 4.1 — Tell failure kinds apart from the exit code alone** ✅
 - Task: distinct, documented exit codes for at least "item not found",
   "invalid state for this operation" (e.g. already archived), and
   "invalid config" — replacing the current blanket exit 1 →

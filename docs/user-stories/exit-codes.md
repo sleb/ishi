@@ -14,7 +14,7 @@ signal alongside the message a human already reads.
 
 ---
 
-## User Story 001
+## User Story 001 ✅
 
 - **Summary:** Distinct exit codes for distinct failure categories, with the existing error message unchanged
 - **Depends on:** None (cuts across every command's existing error paths)
