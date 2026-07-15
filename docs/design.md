@@ -175,6 +175,11 @@ structured results — no printing, no prompting.
   an `Archive` item's origin subfolder (`Inbox`, `Projects`, `Areas`,
   `Resources`), the latter case-sensitively distinct from the former since
   basenames aren't unique across `Archive` origin subfolders either.
+- **Locate (archived, bare)**: `unarchive`'s own narrower bare-name search —
+  unlike `Locate`, scans every `Archive` origin subfolder (not the four live
+  categories) and returns the item's origin category, erroring if more than
+  one origin matches. Safe only because `unarchive` never resolves outside
+  `Archive` to begin with, so there's no live/archived collision to obscure.
 - **Move**: relocates an item between categories, wrapping a flat file into
   a directory when moving into `Project`/`Area`, and preserving the item's
   origin category as an `Archive` subfolder when archiving. Moving *out of*
@@ -315,7 +320,10 @@ failure keeps exit code 1, unchanged.
   contents.
 - `items::locate`'s `Archive` fallback only matches the composite
   `<OriginCategory>/<name>` form, never a bare name, because basenames
-  aren't unique across `Archive` origin subfolders.
+  aren't unique across `Archive` origin subfolders. `unarchive` gets its own
+  bare-name fallback for `Archive` (`items::locate_archived_bare`), which is
+  safe precisely because `unarchive` never resolves outside `Archive` to
+  begin with — `locate`'s bare-name exclusion of `Archive` is unchanged.
 - `run_config_edit` distinguishes "created" from "already existed" by
   matching `config::init`'s `AlreadyExists` error variant rather than a
   `path.exists()` pre-check, avoiding a TOCTOU gap.

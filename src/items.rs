@@ -617,6 +617,53 @@ pub fn locate(ws: &Workspace, name: &str) -> Result<Option<(Category, PathBuf)>,
     }
 }
 
+/// Bare-name search across every `Archive` origin subfolder — the
+/// `unarchive`-specific counterpart to `locate`'s bare-name search, which
+/// deliberately excludes `Archive` (see `locate`'s doc comment and
+/// `docs/design.md`'s invariants). Safe here specifically because
+/// `unarchive` only ever resolves inside `Archive` to begin with, so there's
+/// no live/archived collision for a bare name to obscure the way there
+/// would be for `move`/`archive`.
+///
+/// Returns the item's *origin* category (not `Category::Archive`) paired
+/// with its on-disk path, matching what `run_unarchive` needs as `mv`'s
+/// `target` — same `Ok(None)` / `Ok(Some(..))` / `Err(Ambiguous)` shape as
+/// `locate`, with `Ambiguous.locations` naming origins via
+/// `archive_origin_name()` (e.g. `"Projects, Areas"`), the exact string a
+/// caller can paste back as a qualifier.
+pub fn locate_archived_bare(
+    ws: &Workspace,
+    name: &str,
+) -> Result<Option<(Category, PathBuf)>, ItemsError> {
+    let archive_dir = ws.category_dir(Category::Archive);
+
+    let mut matches = Vec::new();
+    for origin in Category::archivable() {
+        let dir = archive_dir.join(origin.archive_origin_name());
+        if let Some(path) = find_in_dir(
+            &dir,
+            origin.is_directory_style(),
+            name,
+            &ws.config.default_extension,
+        )? {
+            matches.push((origin, path));
+        }
+    }
+
+    match matches.len() {
+        0 => Ok(None),
+        1 => Ok(matches.into_iter().next()),
+        _ => Err(ItemsError::Ambiguous {
+            name: name.to_string(),
+            locations: matches
+                .iter()
+                .map(|(origin, _)| origin.archive_origin_name())
+                .collect::<Vec<_>>()
+                .join(", "),
+        }),
+    }
+}
+
 /// Looks for `basename` directly under `dir`: for a directory-style
 /// category, `dir/basename` if it's a directory; otherwise a file named
 /// `basename` (any extension) among `dir`'s immediate children.
@@ -1511,6 +1558,57 @@ mod tests {
         create(&ws, Category::Inbox, "my-file", "").unwrap();
 
         let result = locate(&ws, "projects/my-file").unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn locate_archived_bare_finds_unambiguous_item() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let project_index = dir.path().join("4-Archive/Projects/apollo/index.md");
+        fs::create_dir_all(project_index.parent().unwrap()).unwrap();
+        fs::write(&project_index, "").unwrap();
+
+        let result = locate_archived_bare(&ws, "apollo").unwrap();
+
+        assert_eq!(
+            result,
+            Some((
+                Category::Project,
+                project_index.parent().unwrap().to_path_buf()
+            ))
+        );
+    }
+
+    #[test]
+    fn locate_archived_bare_matching_two_origins_is_ambiguous() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let project_index = dir.path().join("4-Archive/Projects/apollo/index.md");
+        fs::create_dir_all(project_index.parent().unwrap()).unwrap();
+        fs::write(&project_index, "").unwrap();
+        let area_index = dir.path().join("4-Archive/Areas/apollo/index.md");
+        fs::create_dir_all(area_index.parent().unwrap()).unwrap();
+        fs::write(&area_index, "").unwrap();
+
+        let err = locate_archived_bare(&ws, "apollo").unwrap_err();
+
+        match err {
+            ItemsError::Ambiguous { name, locations } => {
+                assert_eq!(name, "apollo");
+                assert_eq!(locations, "Projects, Areas");
+            }
+            other => panic!("expected Ambiguous, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn locate_archived_bare_matching_nothing_returns_none() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+
+        let result = locate_archived_bare(&ws, "nonexistent").unwrap();
 
         assert_eq!(result, None);
     }

@@ -267,3 +267,44 @@ See [init.md](init.md) Stories 005-006.)
 - **Given:** no item named `nonexistent` exists in any category
 - **When:** I run `ishi move nonexistent project`
 - **Then:** Ishi prints `No item named "nonexistent" found`, exactly as before — this story only changes behavior when a name matches more than one item
+
+---
+
+## User Story 007
+
+- **Summary:** `ishi unarchive` accepts a bare (unqualified) name when it unambiguously matches one archived item, instead of always requiring the full `<OriginCategory>/<name>` form
+- **Status:** ✅
+- **Depends on:** Story 005 (the qualified `<OriginCategory>/<name>` form this adds a shortcut alongside, without replacing it)
+
+### Use Case
+
+- **As a** Ishi user (or agent) restoring an archived item
+- **I want to** run `ishi unarchive <name>` with the same bare name `ishi list archive` shows, without having to prefix it with the category it happened to be archived from
+- **so that** `unarchive` behaves consistently with `move`/`archive`/`review`, which all accept a bare name when it's unambiguous — the qualified form should be there for disambiguation, not required by default
+
+### Acceptance Criteria
+
+- **Scenario:** A bare name that matches exactly one archived item resolves without qualification
+- **Given:** `apollo` exists as a directory under `4-Archive/Projects` and nowhere else in `Archive`
+- **When:** I run `ishi unarchive apollo`
+- **Then:** Ishi restores it exactly as `ishi unarchive Projects/apollo` would, printing `Moved archive/Projects/apollo to projects/apollo`
+
+- **Scenario:** A bare name that matches archived items from two different origins is rejected as ambiguous
+- **Given:** an item named `apollo` exists as a directory under both `4-Archive/Projects` and `4-Archive/Areas`
+- **When:** I run `ishi unarchive apollo`
+- **Then:** Ishi prints an error naming both candidates (e.g. `"apollo" is ambiguous — found in Projects, Areas`) and does not move anything
+
+- **Scenario:** Qualifying the name still resolves the ambiguity, exactly as before
+- **Given:** an item named `apollo` exists as a directory under both `4-Archive/Projects` and `4-Archive/Areas`
+- **When:** I run `ishi unarchive Projects/apollo`
+- **Then:** Ishi restores `4-Archive/Projects/apollo` (and only that one) to `1-Projects/apollo`
+
+- **Scenario:** A bare name matching a live (non-archived) item is still rejected as not archived, not silently treated as a typo for the archived form
+- **Given:** `my-file.md` exists in `0-Inbox` and nothing named `my-file` exists in `Archive`
+- **When:** I run `ishi unarchive my-file`
+- **Then:** Ishi prints an error that `my-file` is not archived — this story only adds a bare-name lookup *inside* `Archive`, it doesn't change what counts as archived
+
+- **Scenario:** A bare name that matches nothing anywhere still gets Ishi's existing "not found" error
+- **Given:** no item named `nonexistent` exists anywhere, archived or otherwise
+- **When:** I run `ishi unarchive nonexistent`
+- **Then:** Ishi prints `No item named "nonexistent" found`, exactly as before

@@ -457,9 +457,12 @@ fn render_status_items(items: &[items::StatusItem]) -> Vec<String> {
 /// Renders `path` for user-facing messages: relative to the workspace root,
 /// with the (possibly custom-configured) numbered category folder replaced
 /// by its lowercase canonical name, e.g. `0-Inbox/notes.md` ->
-/// `inbox/notes.md`, and — for items filed under `Archive` — the origin
-/// subfolder lowercased too, e.g. `4-Archive/Projects/foo` ->
-/// `archive/projects/foo`. Falls back to `path` as-is (absolute or
+/// `inbox/notes.md`. For items filed under `Archive`, the origin subfolder
+/// keeps its real on-disk casing, e.g. `4-Archive/Projects/foo` ->
+/// `archive/Projects/foo` — matching `items.rs`'s `archive_origin_name()`
+/// and `ishi list archive`'s already-capitalized `<OriginCategory>/<name>`
+/// rendering, since `archive/projects/foo` doesn't exist on a
+/// case-sensitive filesystem. Falls back to `path` as-is (absolute or
 /// otherwise unmodified) if it isn't inside any of the five category
 /// folders.
 pub fn display_path(ws: &Workspace, path: &Path) -> String {
@@ -475,21 +478,7 @@ pub fn display_path(ws: &Workspace, path: &Path) -> String {
         };
 
         let mut display = PathBuf::from(category.display_name().to_lowercase());
-        if category == Category::Archive {
-            let mut components = rest.components();
-            if let Some(origin) = components.next() {
-                let word = origin.as_os_str().to_string_lossy();
-                let lowered = Category::archivable()
-                    .into_iter()
-                    .find(|c| c.archive_origin_name() == word)
-                    .map(|c| c.archive_origin_name().to_lowercase())
-                    .unwrap_or_else(|| word.into_owned());
-                display.push(lowered);
-            }
-            display.push(components.as_path());
-        } else {
-            display.push(rest);
-        }
+        display.push(rest);
         return display.display().to_string();
     }
     path.display().to_string()
@@ -542,28 +531,48 @@ pub fn run_move(
 /// `<OriginCategory>/<name>` addressing). Rejects `name` if it doesn't
 /// resolve to an `Archive` item — a bare name matching a live item, or no
 /// match at all, is never something to "un-archive".
+///
+/// A bare name (no `/`) that `items::locate` doesn't resolve — because
+/// `locate`'s bare-name search deliberately excludes `Archive` — falls back
+/// to `items::locate_archived_bare` (move.md 007), which searches every
+/// `Archive` origin subfolder and errors naming every origin on an
+/// ambiguous match. A qualified name (`Category/name`) that `locate`
+/// doesn't resolve is left as a plain `ItemNotFound`; no bare fallback is
+/// attempted for it, so a typo'd qualifier never silently succeeds.
 pub fn run_unarchive(ws: &Workspace, name: &str) -> anyhow::Result<String> {
-    let (source, source_path) = items::locate(ws, name)?.ok_or_else(|| CliError::ItemNotFound {
-        name: name.to_string(),
-    })?;
-
-    if source != Category::Archive {
-        return Err(CliError::NotArchived {
-            name: name.to_string(),
+    let (source, source_path) = match items::locate(ws, name)? {
+        Some((source, source_path)) => {
+            if source != Category::Archive {
+                return Err(CliError::NotArchived {
+                    name: name.to_string(),
+                }
+                .into());
+            }
+            (source, source_path)
         }
-        .into());
-    }
+        None if !name.contains('/') => {
+            items::locate_archived_bare(ws, name)?.ok_or_else(|| CliError::ItemNotFound {
+                name: name.to_string(),
+            })?
+        }
+        None => {
+            return Err(CliError::ItemNotFound {
+                name: name.to_string(),
+            }
+            .into());
+        }
+    };
 
-    let origin_name = name
-        .split_once('/')
-        .map(|(origin, _)| origin)
-        .expect("items::locate only resolves Archive for a qualified <OriginCategory>/<name>");
-    let target = Category::archivable()
-        .into_iter()
-        .find(|category| category.archive_origin_name() == origin_name)
-        .expect("items::locate only resolves Archive for a recognized origin prefix");
+    let target = if let Some((origin_name, _)) = name.split_once('/') {
+        Category::archivable()
+            .into_iter()
+            .find(|category| category.archive_origin_name() == origin_name)
+            .expect("items::locate only resolves Archive for a recognized origin prefix")
+    } else {
+        source
+    };
 
-    let dest_path = items::mv(ws, source, &source_path, name, target)?;
+    let dest_path = items::mv(ws, Category::Archive, &source_path, name, target)?;
     Ok(format!(
         "Moved {} to {}",
         display_path(ws, &source_path),
@@ -690,6 +699,15 @@ mod tests {
             root: root.to_path_buf(),
             config: Config::default(),
         }
+    }
+
+    #[test]
+    fn display_path_preserves_archive_origin_casing() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let path = dir.path().join("4-Archive/Projects/foo");
+
+        assert_eq!(display_path(&ws, &path), "archive/Projects/foo");
     }
 
     fn workspace_with_note_template(root: &std::path::Path, template: &str) -> Workspace {
@@ -2328,7 +2346,7 @@ mod tests {
         let dest_path = dir.path().join("1-Projects/website-redesign");
         assert_eq!(
             message,
-            "Moved archive/projects/website-redesign to projects/website-redesign"
+            "Moved archive/Projects/website-redesign to projects/website-redesign"
         );
         assert_eq!(
             fs::read_to_string(dest_path.join("index.md")).unwrap(),
@@ -2349,7 +2367,7 @@ mod tests {
         let dest_path = dir.path().join("3-Resources/my-file.md");
         assert_eq!(
             message,
-            "Moved archive/resources/my-file.md to resources/my-file.md"
+            "Moved archive/Resources/my-file.md to resources/my-file.md"
         );
         assert_eq!(fs::read_to_string(&dest_path).unwrap(), "hello");
     }
@@ -2382,6 +2400,58 @@ mod tests {
             err.downcast_ref::<CliError>(),
             Some(CliError::ItemNotFound { .. })
         ));
+    }
+
+    #[test]
+    fn run_unarchive_restores_via_bare_name() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let archived = dir.path().join("4-Archive/Projects/apollo/index.md");
+        fs::create_dir_all(archived.parent().unwrap()).unwrap();
+        fs::write(&archived, "# Apollo\n").unwrap();
+
+        let message = run_unarchive(&ws, "apollo").unwrap();
+
+        let dest_path = dir.path().join("1-Projects/apollo");
+        assert_eq!(message, "Moved archive/Projects/apollo to projects/apollo");
+        assert_eq!(
+            fs::read_to_string(dest_path.join("index.md")).unwrap(),
+            "# Apollo\n"
+        );
+    }
+
+    #[test]
+    fn run_unarchive_rejects_ambiguous_bare_name() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let project_index = dir.path().join("4-Archive/Projects/apollo/index.md");
+        fs::create_dir_all(project_index.parent().unwrap()).unwrap();
+        fs::write(&project_index, "").unwrap();
+        let area_index = dir.path().join("4-Archive/Areas/apollo/index.md");
+        fs::create_dir_all(area_index.parent().unwrap()).unwrap();
+        fs::write(&area_index, "").unwrap();
+
+        let err = run_unarchive(&ws, "apollo").unwrap_err();
+
+        assert!(err.to_string().contains("Projects, Areas"));
+    }
+
+    #[test]
+    fn run_unarchive_qualified_form_still_resolves_ambiguity() {
+        let dir = tempdir().unwrap();
+        let ws = workspace(dir.path());
+        let project_index = dir.path().join("4-Archive/Projects/apollo/index.md");
+        fs::create_dir_all(project_index.parent().unwrap()).unwrap();
+        fs::write(&project_index, "# Apollo Project\n").unwrap();
+        let area_index = dir.path().join("4-Archive/Areas/apollo/index.md");
+        fs::create_dir_all(area_index.parent().unwrap()).unwrap();
+        fs::write(&area_index, "# Apollo Area\n").unwrap();
+
+        let message = run_unarchive(&ws, "Projects/apollo").unwrap();
+
+        assert_eq!(message, "Moved archive/Projects/apollo to projects/apollo");
+        assert!(dir.path().join("1-Projects/apollo/index.md").is_file());
+        assert!(dir.path().join("4-Archive/Areas/apollo/index.md").is_file());
     }
 
     #[test]

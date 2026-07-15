@@ -51,18 +51,21 @@ tools after `ishi new` returns.
 
 ## Filing and archiving
 
-`ishi move`, `ishi archive`, and `ishi unarchive` show a confirmation
-prompt by default. Pass `--yes` to accept the suggested summary and skip
-it:
+`ishi move` and `ishi archive` prompt for a summary only when the
+destination is `archive` — that's the one case with a confirmation prompt
+to skip. Pass `--yes` to accept the suggested summary and skip it:
 
 ```
 ishi move my-file project --yes     # file an Inbox item into Projects
 ishi archive website-redesign --yes # shorthand for `ishi move website-redesign archive`
-ishi unarchive my-file --yes
+ishi unarchive my-file
 ```
 
-`ishi mv` is an alias for `ishi move`. Without `--yes`, these commands wait
-on a prompt a script or agent can't answer — always include it.
+`ishi mv` is an alias for `ishi move`. Without `--yes`, `move`/`archive` to
+`archive` wait on a prompt a script or agent can't answer — always include
+it. `ishi unarchive` never prompts and takes no `--yes`; it also accepts a
+bare name (no `Category/` prefix) when it unambiguously matches one
+archived item.
 
 ## Commands that require a human
 
